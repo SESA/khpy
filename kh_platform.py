@@ -8,17 +8,17 @@ class KhBase(object):
     None
   
   # cli parser methods
-  def clean_parser(self):
+  def parse_clean(self):
     None
-  def get_parser(self):
+  def parse_get(self):
     None
-  def info_parser(self):
+  def parser_init(self):
     None
-  def install_parser(self):
+  def parser_install(self):
     None
-  def rm_parser(self):
+  def parser_rm(self):
     None
-  def setup_parser(self):
+  def parser_setup(self):
     None
 
   # kh methods

@@ -3,17 +3,15 @@
 ########################################
 #  Kittyhawk Command-line Interface    #
 ########################################
-
 import argparse
 import os
 import sys
 
-# setup envoirnment variables
+# load envoirnment 
 khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
 sys.path.append(khsrc+"/platforms")
 from kh_enviro import *
-
 env = setup_environment()
 env.test()
 
@@ -22,12 +20,12 @@ par    = argparse.ArgumentParser()
 subpar = par.add_subparsers()
 
 # create a parser for each command
-parse_clean= subpar.add_parser('clean')
-parse_get  = subpar.add_parser('get')
-parse_info = subpar.add_parser('info')
-parse_inst = subpar.add_parser('install')
-parse_rm   = subpar.add_parser('rm')
-parse_init = subpar.add_parser('setup')
+clean_parser = env.parse_clean(subpar.add_parser('clean'))
+get_parser   = env.parse_get(subpar.add_parser('get'))
+info_parser  = env.parse_info(subpar.add_parser('info'))
+inst_parser  = env.parse_install(subpar.add_parser('install'))
+rm_parser    = env.parse_rm(subpar.add_parser('rm'))
+init_parser  = env.parse_setup(subpar.add_parser('setup'))
 
 # parse the command line arguments
 args = par.parse_args()
