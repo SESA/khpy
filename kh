@@ -11,22 +11,48 @@ import sys
 khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
 sys.path.append(khsrc+"/platforms")
-from kh_enviro import *
-env = setup_environment()
-env.test()
+
+# verify environment variables 
+required_vars = ["KHDB", "KHTYPE"]
+missing_vars = False
+for i in required_vars:
+  if os.getenv(i) == None:
+    print "Error: missing environment variable",i
+    missing_vars = True
+if missing_vars:
+  exit()
+
+# Detect and setup envoirnment settings
+def load_kh_type():
+  ''' add additional platforms below..
+      e.g., moc, ec2 '''
+  env = os.getenv("KHTYPE")
+  # qemu-kvm
+  if env == "qemu":
+    from kh_qemu import KhQemu
+    ret = KhQemu()
+  # hpcloud
+  elif env  == "hpcloud":
+    from kh_hpcloud import KhHpCloud
+    ret = KhHpCloud()
+  # defaults
+  else:
+    ret = KhBase()
+  return ret
 
 # create the top-level argument parser
 par    = argparse.ArgumentParser()
 subpar = par.add_subparsers()
 
 # create a parser for each command
-clean_parser = env.parse_clean(subpar.add_parser('clean'))
-get_parser   = env.parse_get(subpar.add_parser('get'))
-info_parser  = env.parse_info(subpar.add_parser('info'))
-inst_parser  = env.parse_install(subpar.add_parser('install'))
-rm_parser    = env.parse_rm(subpar.add_parser('rm'))
-init_parser  = env.parse_setup(subpar.add_parser('setup'))
+kh = load_kh_type()
+clean_parser = kh.parse_clean(subpar.add_parser('clean'))
+get_parser   = kh.parse_get(subpar.add_parser('get'))
+info_parser  = kh.parse_info(subpar.add_parser('info'))
+inst_parser  = kh.parse_install(subpar.add_parser('install'))
+rm_parser    = kh.parse_rm(subpar.add_parser('rm'))
+setup_parser = kh.parse_setup(subpar.add_parser('setup'))
 
 # parse the command line arguments
 args = par.parse_args()
-args.func(args)
+args.func()
