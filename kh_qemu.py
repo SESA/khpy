@@ -1,12 +1,12 @@
 from kh_base import *
 
-class KhHpCloud(KhBase):
-  def __init__(self):
-    None
+class KhQemu(KhBase):
+  def __init__(self, configsrc):
+    KhBase.__init__(self, configsrc)
 
   # misc
   def test(self):
-    print "You found hp!"
+    print "You found qemu!"
 
   def parse_get(self, parser):
     parser.set_defaults(func=self.get)
@@ -19,8 +19,8 @@ class KhHpCloud(KhBase):
     return parser
 
   def get(self):
-    print "hp get"
+    print "qemu get"
   def rm(self):
-    print "hp rm"
+    print "qemu rm"
   def setup(self):
-    print "hp setup"
+    print "qemu setup"

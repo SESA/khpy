@@ -4,16 +4,14 @@
 #  Kittyhawk Command-line Interface    #
 ########################################
 import argparse
+import ConfigParser 
 import os
 import sys
 
-# load envoirnment 
+# load envoirnment variables
 khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
-sys.path.append(khsrc+"/platforms")
-
-# verify environment variables 
-required_vars = ["KHDB", "KHTYPE"]
+required_vars = ["KHDB", "KHTYPE"] #TODO: move into config
 missing_vars = False
 for i in required_vars:
   if os.getenv(i) == None:
@@ -21,30 +19,39 @@ for i in required_vars:
     missing_vars = True
 if missing_vars:
   exit()
+# verify location of database
+if os.path.exists(os.getenv("KHDB")) == 0:
+  print "Error: invalid $KHDB directory", os.getenv("KHDB")
+  exit()
 
-# Detect and setup envoirnment settings
+# import configuration
+Config = ConfigParser.SafeConfigParser()
+Config.read(os.path.join(khsrc,"kh.cfg"))
+
+# Construct an KH object specified in the configuration
 def load_kh_type():
-  ''' add additional platforms below..
-      e.g., moc, ec2 '''
   env = os.getenv("KHTYPE")
-  # qemu-kvm
-  if env == "qemu":
-    from kh_qemu import KhQemu
-    ret = KhQemu()
-  # hpcloud
-  elif env  == "hpcloud":
-    from kh_hpcloud import KhHpCloud
-    ret = KhHpCloud()
-  # defaults
-  else:
-    ret = KhBase()
-  return ret
-
-# create the top-level argument parser
+  configs=[os.path.join(khsrc,"kh_base.cfg")]
+  for i in Config.sections():
+    if env == i:
+      # load modules from src dir
+      cls = Config.get(i, 'class')
+      mod = __import__(i, fromlist=[cls])
+      ref = getattr(mod, cls)
+      # build configuration list
+      configs.append(os.path.join(khsrc,Config.get(i,'config')))
+      # this constructs and returns kh object
+      return ref(configs)
+  # return base object if no platform was loaded
+  print "Warning: platform type not specified"
+  from kh_base import KhBase
+  return KhBase(configs)
+  
+# create the command-line argument parser
 par    = argparse.ArgumentParser()
 subpar = par.add_subparsers()
 
-# create a parser for each command
+# configure parsers for KH commands
 kh = load_kh_type()
 clean_parser = kh.parse_clean(subpar.add_parser('clean'))
 get_parser   = kh.parse_get(subpar.add_parser('get'))
@@ -53,6 +60,37 @@ inst_parser  = kh.parse_install(subpar.add_parser('install'))
 rm_parser    = kh.parse_rm(subpar.add_parser('rm'))
 setup_parser = kh.parse_setup(subpar.add_parser('setup'))
 
-# parse the command line arguments
-args = par.parse_args()
-args.func()
+# parse and run command
+clinput = vars(par.parse_args())
+# TODO: find a better way to pass variable amount of arguments to function
+if 'arg' not in clinput:
+  clinput['func']()
+elif len(clinput['arg']) == 1:
+  clinput['func']( clinput[clinput['arg'][0]] )
+elif len(clinput['arg']) == 2:
+  clinput['func']( clinput[clinput['arg'][0]], 
+      clinput[clinput['arg'][1]] )
+elif len(clinput['arg']) == 3:
+  clinput['func']( clinput[clinput['arg'][0]], 
+      clinput[clinput['arg'][1]],
+      clinput[clinput['arg'][2]] )
+elif len(clinput['arg']) == 4:
+  clinput['func']( clinput[clinput['arg'][0]], 
+      clinput[clinput['arg'][1]],
+      clinput[clinput['arg'][2]],
+      clinput[clinput['arg'][3]] )
+elif len(clinput['arg']) == 5:
+  clinput['func']( clinput[clinput['arg'][0]], 
+      clinput[clinput['arg'][1]],
+      clinput[clinput['arg'][2]],
+      clinput[clinput['arg'][3]],
+      clinput[clinput['arg'][4]] )
+elif len(clinput['arg']) == 6:
+  clinput['func']( clinput[clinput['arg'][0]], 
+      clinput[clinput['arg'][1]],
+      clinput[clinput['arg'][2]],
+      clinput[clinput['arg'][3]],
+      clinput[clinput['arg'][4]],
+      clinput[clinput['arg'][5]] )
+
+# print "I'm finished."
