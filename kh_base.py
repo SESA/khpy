@@ -19,9 +19,10 @@ def _ensure_value(namespace, name, value):
 # our custom parameterizer
 class Parameterize(argparse.Action):
   def __call__(self, parser, namespace, values, option_string=None):
-    items = copy.copy(_ensure_value(namespace, self.metavar, []))
+    print(namespace)
+    items = copy.copy(_ensure_value(namespace, 'args', []))
     items.append(self.dest)
-    setattr(namespace, self.metavar, items)
+    setattr(namespace, 'args', items)
     setattr(namespace, self.dest, values)
     
 
@@ -34,8 +35,8 @@ class KhBase(object):
         self.config.get("BaseDirectories","nodes"))
     self.data_network_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","network"))
-    self.data_user_path = os.path.join(self.db_path,
-        self.config.get("BaseDirectories","user"))
+    self.data_job_path = os.path.join(self.db_path,
+        self.config.get("BaseDirectories","job"))
 
   # cli parser methods   ################################################
 
@@ -45,11 +46,13 @@ class KhBase(object):
 
   def parse_get(self, parser):
     parser.set_defaults(func=self.get)
-    parser.add_argument('job', action=Parameterize, metavar="arg")
-    parser.add_argument('count', action=Parameterize, metavar="arg")
+    parser.add_argument('job', action=Parameterize, help="Name of job")
+    parser.add_argument('count', action=Parameterize, help="Amount of\
+        instances to get")
     return parser
 
   def parse_info(self, parser):
+    parser.add_argument('job', action=Parameterize, help="Name of job")
     parser.set_defaults(func=self.info)
     return parser
 
@@ -58,6 +61,7 @@ class KhBase(object):
     return parser
 
   def parse_rm(self, parser):
+    parser.add_argument('job', action=Parameterize, help="Name of job")
     parser.set_defaults(func=self.rm)
     return parser
 
@@ -76,16 +80,28 @@ class KhBase(object):
 
   def get(self, job, count):
     ''' 
-    Input: jobname, none-count
+    Input: job name, instance count
     Process:
         - check if job record exists
            if not, make job record, set conid, netid
         - get and set next free node record
         - 
     '''
-    print("get -->", job, count)
+    #check if job record exists
+    for file in os.listdir(self.data_job_path):
+      if fnmatch.fnmatch(file, job+":*"):
+        jobid = str(file).split(':')[1];
+        break
+    if jobid == None:
+      jobid = self.db_job_set(job) # set new job
+    # ok, we have job id...
+
+
+
+
 
   def info(self):
+    #TODO: all..
     print ("base info")
 
   def install(self):
@@ -112,10 +128,6 @@ class KhBase(object):
     print( "Warning: base rm does nothing")
 
   def setup(self, count=0):
-    '''
-    Input: max instance count (optional)
-    Process: 
-    '''
     # TODO: run clean initially  
     if count == 0:
       count=self.config.getint("Defaults", "instance_count")
@@ -137,8 +149,18 @@ class KhBase(object):
 
   ''' TODO
     - method to remove a list of nodes 
-
   '''
+  # Setup new job, return jobid
+  def db_job_set(self, name): 
+    rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
+    nextid=rid+1
+    # increase jobid count
+    f = open(self.db_path+'/'+self.config.get('BaseFiles', 'jobid'), 'w')
+    print(nextid, file=f)
+    f.close()
+    # setup records
+    rpath = self.db_path+'/'+self.config.get('BaseDirectories','job')+'/'+str(name)+':'+str(nextid)
+    return rid
 
   # remove matching record(s)
   def db_node_rm(self, node, owner, conid):

@@ -54,7 +54,9 @@ subpar = par.add_subparsers()
 # configure parsers for KH commands
 kh = load_kh_type()
 clean_parser = kh.parse_clean(subpar.add_parser('clean'))
-get_parser   = kh.parse_get(subpar.add_parser('get'))
+get_parser   = kh.parse_get(subpar.add_parser('get', 
+  description="Allocate a new instance for the specified job.",
+  formatter_class=argparse.RawDescriptionHelpFormatter))
 info_parser  = kh.parse_info(subpar.add_parser('info'))
 inst_parser  = kh.parse_install(subpar.add_parser('install'))
 rm_parser    = kh.parse_rm(subpar.add_parser('rm'))
@@ -62,35 +64,37 @@ setup_parser = kh.parse_setup(subpar.add_parser('setup'))
 
 # parse and run command
 clinput = vars(par.parse_args())
+print vars(par.parse_args())
+exit(1)
 # TODO: find a better way to pass variable amount of arguments to function
-if 'arg' not in clinput:
+if 'args' not in clinput:
   clinput['func']()
-elif len(clinput['arg']) == 1:
-  clinput['func']( clinput[clinput['arg'][0]] )
-elif len(clinput['arg']) == 2:
-  clinput['func']( clinput[clinput['arg'][0]], 
-      clinput[clinput['arg'][1]] )
-elif len(clinput['arg']) == 3:
-  clinput['func']( clinput[clinput['arg'][0]], 
-      clinput[clinput['arg'][1]],
-      clinput[clinput['arg'][2]] )
-elif len(clinput['arg']) == 4:
-  clinput['func']( clinput[clinput['arg'][0]], 
-      clinput[clinput['arg'][1]],
-      clinput[clinput['arg'][2]],
-      clinput[clinput['arg'][3]] )
-elif len(clinput['arg']) == 5:
-  clinput['func']( clinput[clinput['arg'][0]], 
-      clinput[clinput['arg'][1]],
-      clinput[clinput['arg'][2]],
-      clinput[clinput['arg'][3]],
-      clinput[clinput['arg'][4]] )
-elif len(clinput['arg']) == 6:
-  clinput['func']( clinput[clinput['arg'][0]], 
-      clinput[clinput['arg'][1]],
-      clinput[clinput['arg'][2]],
-      clinput[clinput['arg'][3]],
-      clinput[clinput['arg'][4]],
-      clinput[clinput['arg'][5]] )
+elif len(clinput['args']) == 1:
+  clinput['func']( clinput[clinput['args'][0]] )
+elif len(clinput['args']) == 2:
+  clinput['func']( clinput[clinput['args'][0]], 
+      clinput[clinput['args'][1]] )
+elif len(clinput['args']) == 3:
+  clinput['func']( clinput[clinput['args'][0]], 
+      clinput[clinput['args'][1]],
+      clinput[clinput['args'][2]] )
+elif len(clinput['args']) == 4:
+  clinput['func']( clinput[clinput['args'][0]], 
+      clinput[clinput['args'][1]],
+      clinput[clinput['args'][2]],
+      clinput[clinput['args'][3]] )
+elif len(clinput['args']) == 5:
+  clinput['func']( clinput[clinput['args'][0]], 
+      clinput[clinput['args'][1]],
+      clinput[clinput['args'][2]],
+      clinput[clinput['args'][3]],
+      clinput[clinput['args'][4]] )
+elif len(clinput['args']) == 6:
+  clinput['func']( clinput[clinput['args'][0]], 
+      clinput[clinput['args'][1]],
+      clinput[clinput['args'][2]],
+      clinput[clinput['args'][3]],
+      clinput[clinput['args'][4]],
+      clinput[clinput['args'][5]] )
 
 # print "I'm finished."

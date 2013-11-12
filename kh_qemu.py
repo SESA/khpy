@@ -9,12 +9,19 @@ class KhQemu(KhBase):
     print "You found qemu!"
 
   def parse_get(self, parser):
+    parser = KhBase.parse_get(self, parser)
+    parser.add_argument('bootimg', action=Parameterize,
+        help='Path to boot image')
     parser.set_defaults(func=self.get)
     return parser
+
   def parse_rm(self, parser):
+    parser = KhBase.parse_rm(self, parser)
     parser.set_defaults(func=self.rm)
     return parser
+
   def parse_setup(self, parser):
+    parser = KhBase.parse_setup(self, parser)
     parser.set_defaults(func=self.setup)
     return parser
 
