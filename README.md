@@ -1,4 +1,4 @@
-khclipy
+khpy
 =======
 
-**K**ittyhawk **C**ommand **L**ine **I**nterface in **PY**thon
+**K**ittyhawk in Python
