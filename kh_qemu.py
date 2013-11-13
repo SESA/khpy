@@ -25,9 +25,13 @@ class KhQemu(KhBase):
     parser.set_defaults(func=self.setup)
     return parser
 
-  def get(self):
+  def get(self, job, count, bootimg ):
+    KhBase.get(self, job, count)
     print "qemu get"
-  def rm(self):
+  def rm(self, job):
+    # want to do cleanup here before calling KhBase
+    KhBase.rm(self, job)
     print "qemu rm"
   def setup(self):
+    KhBase.setup(self)
     print "qemu setup"

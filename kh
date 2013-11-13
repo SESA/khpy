@@ -64,9 +64,7 @@ setup_parser = kh.parse_setup(subpar.add_parser('setup'))
 
 # parse and run command
 clinput = vars(par.parse_args())
-print vars(par.parse_args())
-exit(1)
-# TODO: find a better way to pass variable amount of arguments to function
+# TODO: find a better way to pass variable arguments count
 if 'args' not in clinput:
   clinput['func']()
 elif len(clinput['args']) == 1:
