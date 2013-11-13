@@ -17,14 +17,25 @@ def _ensure_value(namespace, name, value):
         setattr(namespace, name, value)
     return getattr(namespace, name)
 
-# our custom parameterizer
-class Parameterize(argparse.Action):
+# our custom parameterizers
+class KH_store_required(argparse.Action):
   def __call__(self, parser, namespace, values, option_string=None):
-    items = copy.copy(_ensure_value(namespace, 'args', []))
+    items = copy.copy(_ensure_value(namespace, 'required_args', []))
     items.append(self.dest)
-    setattr(namespace, 'args', items)
+    setattr(namespace, 'required_args', items)
     setattr(namespace, self.dest, values)
+
+class KH_store_optional_const(argparse._StoreConstAction):
+  def __call__(self, parser, namespace, values, option_string=None):
+    items = copy.copy(_ensure_value(namespace, 'optional_args', {}))
+    items[self.dest] = self.const
+    setattr(namespace, 'optional_args', items)
     
+class KH_store_optional(argparse._StoreAction):
+  def __call__(self, parser, namespace, values, option_string=None):
+    items = copy.copy(_ensure_value(namespace, 'optional_args', {}))
+    items[self.dest] = values
+    setattr(namespace, 'optional_args', items)
 
 class KhBase(object):
   def __init__(self, configsrc):
@@ -46,8 +57,8 @@ class KhBase(object):
 
   def parse_get(self, parser):
     parser.set_defaults(func=self.get)
-    parser.add_argument('job', action=Parameterize, help="Name of job")
-    parser.add_argument('count', type=int, action=Parameterize, help="Amount of\
+    parser.add_argument('job', action=KH_store_required, help="Name of job")
+    parser.add_argument('count', type=int, action=KH_store_required, help="Amount of\
         instances")
     return parser
 
@@ -60,7 +71,7 @@ class KhBase(object):
     return parser
 
   def parse_rm(self, parser):
-    parser.add_argument('job', action=Parameterize, help="Name of job")
+    parser.add_argument('job', action=KH_store_required, help="Name of job")
     parser.set_defaults(func=self.rm)
     return parser
 
@@ -83,6 +94,7 @@ class KhBase(object):
   def get(self, job, count):
     ''' 
     Input: job name, instance count
+    Output: node cookies
     '''
     #check if job record exists
     jobid = None
@@ -92,7 +104,6 @@ class KhBase(object):
         break
     if jobid == None: #if not, setup new job
       jobid = self.db_job_set(job) 
-
     # create data directory
     datapath = os.path.join(self.db_path,
         self.config.get("BaseDirectories", "jobdata")+'/'+str(jobid))
@@ -101,12 +112,10 @@ class KhBase(object):
     # get node id
     nodes = self.db_node_get('*',self.config.get('Settings','FreeOwner'),
         '*',count)
-
     # this check should be somewhere smarter..
     if len(nodes) == 0:
-      print("Warning: looks like we're out of nodes")
+      print("Error: not enough free nodes available")
       exit(1)
-
     # assign nodes
     gotlist = []
     for node in nodes:
@@ -139,8 +148,7 @@ class KhBase(object):
     for s in self.config.options("BaseFiles"):
       d = self.config.get("BaseFiles", s)
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
-        cmd = ["touch", os.path.join(self.db_path, d)]
-        subprocess.call(cmd)
+        self.touch(os.path.join(self.db_path, d))
 
   def rm(self, job):
     jobid = self.db_job_rm(job)
@@ -191,7 +199,6 @@ class KhBase(object):
     return None
 
   # Grab next jobid and assign it to job
-  # TODO: move id assignment login into get()?
   def db_job_set(self, job): 
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
     nextid=rid+1

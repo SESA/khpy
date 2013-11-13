@@ -11,7 +11,7 @@ class KhHpCloud(KhBase):
   def parse_get(self, parser):
     parser = KhBase.parse_get(self, parser)
     parser.set_defaults(func=self.get)
-    parser.add_argument('--cloud', action=Parameterize,
+    parser.add_argument('--cloud', action=KH_store_required,
         type=int, nargs=1, metavar="cid", help='Hp Cloud specific id')
     return parser
 
