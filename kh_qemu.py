@@ -7,8 +7,11 @@ class KhQemu(KhBase):
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
     self.db_path = os.getenv("KHDB")
+    self.job_path = os.path.join(self.db_path,
+        self.config.get("BaseDirectories","jobdata"))
     self.data_job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
+
   # cli parser methods   ################################################
 
   def parse_get(self, parser):
@@ -34,30 +37,22 @@ class KhQemu(KhBase):
     parser.set_defaults(func=self.rm)
     return parser
 
-  def parse_setup(self, parser):
-    parser = KhBase.parse_setup(self, parser)
-    parser.set_defaults(func=self.setup)
-    return parser
-
   # action methods ####################################################
 
   def get(self, job, count, bootimg, config, option={}):
     nodes = KhBase.get(self, job, count)
-      # TODO: print cookie?
-    
+    # TODO: return cookie?
     jobid = None
-    # todo jobid in cookie?
+    # grab jobid from cookie?
     for file in os.listdir(self.data_job_path):
       if fnmatch.fnmatch(file, job+":*"):
         jobid = str(file).split(':')[1];
-
-    jobdir = self.data_job_path+'/'+str(jobid)
+    jobdir = self.job_path+'/'+str(jobid)
 
     for node in nodes:
       nodedir = jobdir+'/'+str(node)
       ''' construct qemu line '''
       cmd = self.config.get('Qemu', 'cmd')
-
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         cmd += " -gdb tcp::"+option['g']
@@ -81,15 +76,29 @@ class KhQemu(KhBase):
       # config
       cmd += " -initrd "+str(config)
       # error log (end of command)
-      cmd += " >"+nodedir+"/error.log 2>&1" 
-
-      print cmd
+      cmd += " >"+nodedir+"/error.log 2>&1 &" 
+      vm = os.popen(cmd)
 
 
   def rm(self, job):
-    print "qemu rm logic"
+    jobinfo = self.db_job_get(job, '*')
+    if(jobinfo == None):
+      print "Error: job",job,"not found."
+      exit(1)
+    jobid = jobinfo[jobinfo.find(':')+1:len(jobinfo)]
+    nodes = self.db_node_get('*', job, jobid)
+    # remove processes
+    for node in nodes:
+      nid = node[0:node.find(':')]
+      path = self.job_path+'/'+str(jobid)+'/'+str(nid)+'/pid'
+      if os.path.exists(path):
+        with open(path, 'r') as f:
+          pid = int(f.readline())
+          f.close()
+        try:
+          os.kill(pid,15) 
+        except OSError:
+          print "Warning: process",pid,"not found."
+          pass
+    # remove from db
     KhBase.rm(self, job)
-
-  def setup(self):
-    KhBase.setup(self)
-    print "qemu setup logic"
