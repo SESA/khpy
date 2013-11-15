@@ -24,10 +24,18 @@ class KhHpCloud(KhBase):
   def parse_get(self, parser):
     parser = KhBase.parse_get(self, parser)
     parser.add_argument('img', action=KH_store_required,
-        type=str, help='Path to application')
+        type=file, help='Path to application')
     parser.add_argument('config', action=KH_store_required,
-        type=str, help='Path to configuration')
+        type=file, help='Path to configuration')
     parser.set_defaults(func=self.get)
+    return parser
+
+  def parse_init(self, parser):
+    parser = KhBase.parse_init(self, parser)
+    dcount=self.config.get('HpCloud','instance_max')
+    parser.add_argument('-c', action=KH_store_optional, default=dcount,
+        type=int, help='Instance count to initilaize')
+    parser.set_defaults(func=self.init)
     return parser
 
   def parse_install(self, parser):
@@ -39,13 +47,6 @@ class KhHpCloud(KhBase):
     parser.set_defaults(func=self.rm)
     return parser
 
-  def parse_setup(self, parser):
-    parser = KhBase.parse_setup(self, parser)
-    dcount=self.config.get('HpCloud','instance_max')
-    parser.add_argument('-c', action=KH_store_optional, default=dcount,
-        type=int, help='Instance count to initilaize')
-    parser.set_defaults(func=self.setup)
-    return parser
 
   # action methods ####################################################
 
@@ -59,7 +60,7 @@ class KhHpCloud(KhBase):
       # TODO: clean net records
     KhBase.clean(self)
 
-  def get(self, job, count, bootimg, config, option={}):
+  def get(self, job, count, img, config, option={}):
     nodes = KhBase.get(self, job, count)
     # grab jobid from cookie?
     jobid = None
@@ -77,20 +78,16 @@ class KhHpCloud(KhBase):
       config_path = self.config.get('HpCloud','config')
       app_path = self.config.get('HpCloud','app')
       ####
-      load_config = "scp "+sshflags+' '+config+' '+user+"@"+ip+":"+config_path
-      load_app = "scp "+sshflags+' '+bootimg+' '+user+"@"+ip+":"+app_path
+      load_config = "scp "+sshflags+' '+config.name+' '+user+"@"+ip+":"+config_path
+      load_app = "scp "+sshflags+' '+img.name+' '+user+"@"+ip+":"+app_path
       load_kernel = "ssh "+sshflags+' '+user+"@"+ip+" sudo kexec -t multiboot-x86 \
 --module="+config_path+" -l "+app_path
       boot_kernel = "ssh "+sshflags+" -f "+user+"@"+ip+" sudo kexec -e \
 > /dev/null 2>&1"
 
-      print "Start..."
       print subprocess.check_output(load_config, shell=True)
-      print "1..."
       print subprocess.check_output(load_app, shell=True)
-      print "2..."
       print subprocess.check_output(load_kernel, shell=True)
-      print "3..."
       print subprocess.check_output(boot_kernel, shell=True)
 
     print "call into hpget", job, count, option
@@ -122,7 +119,7 @@ class KhHpCloud(KhBase):
     # TODO: verify ip persist across reboots
     KhBase.rm(self,job)
       
-  def setup(self, option={}):
+  def init(self, option={}):
     if option.has_key('c') and c>0:
       count = option['c']
     else:
@@ -141,7 +138,7 @@ class KhHpCloud(KhBase):
       ip=subprocess.check_output(cmd, shell=True)
       self.db_net_set(i, ip)
     # setup remaining db records
-    KhBase.setup(self, count)
+    KhBase.init(self, count)
 
 
   # database methods  ###################

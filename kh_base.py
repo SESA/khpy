@@ -74,8 +74,8 @@ class KhBase(object):
     parser.set_defaults(func=self.rm)
     return parser
 
-  def parse_setup(self, parser):
-    parser.set_defaults(func=self.setup)
+  def parse_init(self, parser):
+    parser.set_defaults(func=self.init)
     return parser
 
   # action methods ####################################################
@@ -123,8 +123,6 @@ class KhBase(object):
       self.db_node_set(nid, job, jobid)
       if os.path.exists(datapath+'/'+str(nid)) == 0:
         os.mkdir(datapath+'/'+str(nid))
-
-    print gotlist
     return gotlist
 
 
@@ -170,7 +168,7 @@ class KhBase(object):
       shutil.rmtree(datapath)
 
 
-  def setup(self, count=0):
+  def init(self, count=0):
     self.clean()
     if count == 0:
       count=self.config.getint("Defaults", "instance_count")
@@ -183,6 +181,8 @@ class KhBase(object):
       d = self.config.get("BaseFiles", s)
       if os.path.isfile(os.path.join(self.db_path, d)) == 1:
         with open(self.db_path+'/'+self.config.get('BaseFiles', s), "a") as f:
+          f.seek(0)
+          f.truncate()
           f.write(self.config.get('Defaults',s))
     print "Setup complete."
 
@@ -207,9 +207,10 @@ class KhBase(object):
   def db_job_set(self, job): 
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
     nextid=rid+1
-    print 'rid=',rid,'nexid=',nextid
     # increase jobid count
     with open(self.db_path+'/'+self.config.get('BaseFiles', 'jobid'), "a") as f:
+      f.seek(0)
+      f.truncate()
       f.write(str(nextid))
     # setup db record
     rpath = self.db_path+'/'+self.config.get('BaseDirectories','job')+\

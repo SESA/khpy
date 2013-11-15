@@ -62,15 +62,15 @@ get_parser   = kh.parse_get(subpar.add_parser('get',
 info_parser  = kh.parse_info(subpar.add_parser('info',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
   description="List active jobs"))
+init_parser = kh.parse_init(subpar.add_parser('init',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Initialize free pool from default settings"))
 inst_parser  = kh.parse_install(subpar.add_parser('install',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
   description="Create empty database structure (free pool empty)"))
 rm_parser    = kh.parse_rm(subpar.add_parser('rm',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
   description="Remove job, free assigned nodes"))
-setup_parser = kh.parse_setup(subpar.add_parser('setup',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Initialize free pool from default settings"))
 
 # parse and run command
 clinput = vars(par.parse_args())

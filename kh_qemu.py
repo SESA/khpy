@@ -17,9 +17,9 @@ class KhQemu(KhBase):
   def parse_get(self, parser):
     parser = KhBase.parse_get(self, parser)
     parser.add_argument('img', action=KH_store_required,
-        type=str, help='Path to application')
+        type=file, help='Path to application')
     parser.add_argument('config', action=KH_store_required,
-        type=str, help='Path to configuration')
+        type=file, help='Path to configuration')
     parser.add_argument('-i', action=KH_store_optional_const,
         const=True, default=False, help='Enable internal network')
     parser.add_argument('-x', action=KH_store_optional_const,
@@ -39,7 +39,7 @@ class KhQemu(KhBase):
 
   # action methods ####################################################
 
-  def get(self, job, count, bootimg, config, option={}):
+  def get(self, job, count, img, config, option={}):
     nodes = KhBase.get(self, job, count)
     # TODO: return cookie?
     jobid = None
@@ -72,12 +72,12 @@ class KhQemu(KhBase):
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # kernel 
-      cmd += " -kernel "+str(bootimg)
+      cmd += " -kernel "+str(img.name)
       # config
-      cmd += " -initrd "+str(config)
+      cmd += " -initrd "+str(config.name)
       # error log (end of command)
       cmd += " >"+nodedir+"/error.log 2>&1 &" 
-      vm = os.popen(cmd)
+      subprocess.call(cmd, shell=True)
 
 
   def rm(self, job):
