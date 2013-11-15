@@ -3,7 +3,6 @@
 #  - base platform class                 #
 ##########################################
 
-from __future__ import print_function
 import argparse
 import ConfigParser 
 import copy 
@@ -114,7 +113,7 @@ class KhBase(object):
         '*',count)
     # this check should be somewhere smarter..
     if len(nodes) == 0:
-      print("Error: not enough free nodes available")
+      print "Error: not enough free nodes available"
       exit(1)
     # assign nodes
     gotlist = []
@@ -125,7 +124,7 @@ class KhBase(object):
       if os.path.exists(datapath+'/'+str(nid)) == 0:
         os.mkdir(datapath+'/'+str(nid))
 
-    print(gotlist)
+    print gotlist
     return gotlist
 
 
@@ -135,7 +134,7 @@ class KhBase(object):
       job = file[0:file.find(':')]
       jobid = file[file.find(':')+1:len(file)]
       nodes = self.db_node_get('*',job,jobid)
-      print (job, jobid, len(nodes))
+      print job, jobid, len(nodes)
 
 
   def install(self):
@@ -151,7 +150,12 @@ class KhBase(object):
         self.touch(os.path.join(self.db_path, d))
 
   def rm(self, job):
-    jobid = self.db_job_rm(job)
+    record = self.db_job_get(job, '*')
+    if record == None:
+      print "Error: no job record found"
+      exit(1)
+    jobid = record[record.find(':')+1:len(record)]
+    self.db_job_rm(job, jobid)
     nodes = self.db_node_get('*', job, jobid)
     # set nodes as free
     for node in nodes:
@@ -178,9 +182,10 @@ class KhBase(object):
     for s in self.config.options("BaseFiles"):
       d = self.config.get("BaseFiles", s)
       if os.path.isfile(os.path.join(self.db_path, d)) == 1:
-        f = open(self.db_path+'/'+self.config.get('BaseFiles', s), 'w')
-        print(self.config.get('Defaults',s), file=f)
-        f.close()
+        with open(self.db_path+'/'+self.config.get('BaseFiles', s), "a") as f:
+          f.write(self.config.get('Defaults',s))
+    print "Setup complete."
+
 
 
 
@@ -202,11 +207,10 @@ class KhBase(object):
   def db_job_set(self, job): 
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
     nextid=rid+1
-    print('rid=',rid,'nexid=',nextid)
+    print 'rid=',rid,'nexid=',nextid
     # increase jobid count
-    f = open(self.db_path+'/'+self.config.get('BaseFiles', 'jobid'), 'w')
-    print(nextid, file=f)
-    f.close()
+    with open(self.db_path+'/'+self.config.get('BaseFiles', 'jobid'), "a") as f:
+      f.write(str(nextid))
     # setup db record
     rpath = self.db_path+'/'+self.config.get('BaseDirectories','job')+\
       '/'+str(job)+':'+str(rid)
@@ -214,10 +218,7 @@ class KhBase(object):
     return rid
 
   # remove DB record, return (expired) jobid
-  def db_job_rm(self, job, jobid=None):
-    if jobid == None:
-      record = self.db_job_get(job, '*')
-      jobid = record[record.find(':')+1:len(record)]
+  def db_job_rm(self, job, jobid):
     f = str(job)+":"+str(jobid)
     for file in os.listdir(self.data_job_path):
       if fnmatch.fnmatch(file, f):
@@ -256,4 +257,4 @@ class KhBase(object):
       os.utime(fname, times)
 
   def test(self):
-    print( "You found base!")
+    print "You found base!"
