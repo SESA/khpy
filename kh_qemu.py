@@ -1,5 +1,6 @@
 from kh_base import *
 import os
+import stat
 
 class KhQemu(KhBase):
   def __init__(self, configsrc):
@@ -59,10 +60,14 @@ class KhQemu(KhBase):
         option['g'] = str(int(option['g'])+1)
       # internal network
       if option.has_key('i') and option['i'] == True:
-        cmd += " -net nic,vlan=1,model=virtio -net bridge,vlan=2,br=brI"
+        mac = self.generate_mac(node)
+        cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
+          -net bridge,vlan=2,br=brI"
       # external network
       if option.has_key('x') and option['x'] == True:
-        cmd += " -net nic,vlan=2,model=virtio -net bridge,vlan=2,br=brX"
+        mac = self.generate_mac(node)
+        cmd +=" -net nic,vlan=2,model=virtio,macaddr="+mac+" \
+          -net bridge,vlan=2,br=brX"
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
       # vnc socket
@@ -102,3 +107,29 @@ class KhQemu(KhBase):
           pass
     # remove from db
     KhBase.rm(self, job)
+
+# As per "standards" lookuping up on the net
+# the following are locally admined mac address
+# ranges
+#
+#x2-xx-xx-xx-xx-xx
+#x6-xx-xx-xx-xx-xx
+#xA-xx-xx-xx-xx-xx
+#xE-xx-xx-xx-xx-xx
+# format we use 02:f(<inode>):nodenum
+# ip then uses prefix 10.0 with last to octets of mac
+
+  def generate_mac(self, nid):
+    sig = str(self.inode())
+    nodeid = '0x%02x' % int(nid)
+    macprefix="02:"+sig[10:12]+':'+sig[12:14]+':'+sig[14:16]+':'+sig[8:10]
+    mark = nodeid.find('x')
+    return macprefix+':'+nodeid[mark+1:mark+3]
+  
+
+  def inode(self):
+    path = (os.path.abspath(__file__))
+    if path:
+     return '0x%016x' % int(os.stat(path)[stat.ST_INO])
+    else:
+      return None
