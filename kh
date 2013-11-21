@@ -19,7 +19,9 @@ for i in required_vars:
     missing_vars = True
 if missing_vars:
   exit()
+
 # verify location of database
+# TODO: check config for variable
 if os.path.exists(os.getenv("KHDB")) == 0:
   print "Error: invalid $KHDB directory", os.getenv("KHDB")
   exit()
@@ -28,8 +30,9 @@ if os.path.exists(os.getenv("KHDB")) == 0:
 Config = ConfigParser.SafeConfigParser()
 Config.read(os.path.join(khsrc,"kh.cfg"))
 
-# Construct an KH object specified in the configuration
+# Construct the specified kittyhawk object 
 def load_kh_type():
+  #TODO: allow alternative to envoirnment variable
   env = os.getenv("KHTYPE")
   configs=[os.path.join(khsrc,"kh_base.cfg")]
   for i in Config.sections():
@@ -43,43 +46,52 @@ def load_kh_type():
       # this constructs and returns kh object
       return ref(configs)
   # return base object if no platform was loaded
-  print "Warning: platform type not specified"
-  from kh_base import KhBase
-  return KhBase(configs)
+  print "Warning: a recognized Kittyhawk type was not found. Loading root \
+  functionality only."
+  from kh_base import KhRoot
+  return KhRoot(configs)
+
+# create kh object
+kh = load_kh_type()
   
-# create the command-line argument parser
+# Command-line parsers for core kittyhawk commands
 par    = argparse.ArgumentParser()
 subpar = par.add_subparsers()
+# clean
+kh.parse_clean(subpar.add_parser('clean',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Remove all user, empty free pool"))
+# console
+kh.parse_console(subpar.add_parser('console',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Get console of allocated instance"))
+# get
+kh.parse_get(subpar.add_parser('get', 
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Allocate instances for a given user"))
+# info
+kh.parse_info(subpar.add_parser('info',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="List users"))
+# init
+kh.parse_init(subpar.add_parser('init',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Initialize Kittyhawk environment, populate free pool"))
+# install
+kh.parse_install(subpar.add_parser('install',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Create empty database structure"))
+# rm
+kh.parse_rm(subpar.add_parser('rm',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Remove user, free assigned nodes"))
 
-# configure parsers for KH commands
-kh = load_kh_type()
-clean_parser = kh.parse_clean(subpar.add_parser('clean',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Close all active jobs, empty free pool"))
-get_parser   = kh.parse_get(subpar.add_parser('get', 
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Allocate new instances for the given job."))
-info_parser  = kh.parse_info(subpar.add_parser('info',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="List active jobs"))
-init_parser = kh.parse_init(subpar.add_parser('init',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Initialize free pool from default settings"))
-inst_parser  = kh.parse_install(subpar.add_parser('install',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Create empty database structure (free pool empty)"))
-rm_parser    = kh.parse_rm(subpar.add_parser('rm',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Remove job, free assigned nodes"))
-
-# parse and run command
+# parse input 
 clinput = vars(par.parse_args())
 
-# attach optional dictionary at the end of arg list
+# call into command function with arguments
 if 'optional_args' in clinput:
   clinput['required_args'].append('optional_args')
-
-# TODO: find a better way to pass variable arguments count
 if 'required_args' not in clinput:
   clinput['func']()
 elif len(clinput['required_args']) == 1:
@@ -102,12 +114,4 @@ elif len(clinput['required_args']) == 5:
       clinput[clinput['required_args'][2]],
       clinput[clinput['required_args'][3]],
       clinput[clinput['required_args'][4]] )
-elif len(clinput['required_args']) == 6:
-  clinput['func']( clinput[clinput['required_args'][0]], 
-      clinput[clinput['required_args'][1]],
-      clinput[clinput['required_args'][2]],
-      clinput[clinput['required_args'][3]],
-      clinput[clinput['required_args'][4]],
-      clinput[clinput['required_args'][5]] )
-
-# print "I'm finished."
+# follow the above pattern to extend for 6+ parameters

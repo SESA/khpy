@@ -1,6 +1,6 @@
 ##########################################
 #  Kittyhawk Command-line Interface      #
-#  - base platform class                 #
+#  - root platform class                 #
 ##########################################
 
 import argparse
@@ -36,7 +36,8 @@ class KH_store_optional(argparse._StoreAction):
     items[self.dest] = values
     setattr(namespace, 'optional_args', items)
 
-class KhBase(object):
+# Kittyhawk root object
+class KhRoot(object):
   def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
@@ -48,17 +49,24 @@ class KhBase(object):
     self.data_job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
 
-  # cli parser methods   ################################################
+  # command parse methods  ################################################
 
   def parse_clean(self, parser):
     parser.set_defaults(func=self.clean)
     return parser
 
+  def parse_console(self, parser):
+    parser.add_argument('key',action=KH_store_required,
+      help="Instance identifier")
+    parser.set_defaults(func=self.console)
+    return parser
+
   def parse_get(self, parser):
     parser.set_defaults(func=self.get)
-    parser.add_argument('job', action=KH_store_required, help="Name of job")
-    parser.add_argument('count', type=int, action=KH_store_required, help="Amount of\
-        instances")
+    parser.add_argument('job',type=str,action=KH_store_required, 
+      help="Name of user")
+    parser.add_argument('count',type=int,action=KH_store_required, 
+      help="Amount of instances")
     return parser
 
   def parse_info(self, parser):
@@ -70,7 +78,9 @@ class KhBase(object):
     return parser
 
   def parse_rm(self, parser):
-    parser.add_argument('job', action=KH_store_required, help="Name of job")
+    # TODO: allow '*' and User1, User2...
+    parser.add_argument('job', action=KH_store_required,
+      help="Name of user")
     parser.set_defaults(func=self.rm)
     return parser
 
@@ -89,6 +99,9 @@ class KhBase(object):
         self.config.get("BaseDirectories", "jobdata"))
     shutil.rmtree(datapath)
     os.mkdir(datapath)
+
+  def console(self, key):
+    print "Console support is not available."
 
   def get(self, job, count):
     ''' 
@@ -187,13 +200,7 @@ class KhBase(object):
     print "Setup complete."
 
 
-
-
   # database methods ################################################
-
-  ''' TODO
-    - method to remove a list of nodes ?
-  '''
 
   # return filename of first matching job record
   def db_job_get(self, job, jobid):
@@ -257,5 +264,3 @@ class KhBase(object):
     with file(fname, 'a'):
       os.utime(fname, times)
 
-  def test(self):
-    print "You found base!"
