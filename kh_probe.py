@@ -1,5 +1,7 @@
 from kh_base import *
 import getpass
+import random
+import string
 import time
 
 class KhProbe(KhRoot):
@@ -24,10 +26,6 @@ class KhProbe(KhRoot):
 
   def parse_get(self, parser):
     parser = KhRoot.parse_get(self, parser)
-    parser.add_argument('img', action=KH_store_required,
-        type=file, help='Path to application')
-    parser.add_argument('config', action=KH_store_required,
-        type=file, help='Path to configuration')
     parser.set_defaults(func=self.get)
     return parser
 
@@ -56,11 +54,11 @@ class KhProbe(KhRoot):
     exp = self.config.get('Probe', 'exp')
     cmd = self.config.get('Probe', 'cmd')
     self.db_net_rm('*','*')
-    cmd = cmd+" endexp -e "+proj+","+exp
+    cmd = cmd+" endexp -N -e "+proj+","+exp
     subprocess.call(cmd, shell=True)
     KhRoot.clean(self)
 
-  def get(self, job, count, img, config, option={}):
+  def get(self, job, count, option={}):
     nodes = KhRoot.get(self, job, count)
     # grab jobid from cookie?
     jobid = None
@@ -71,37 +69,37 @@ class KhProbe(KhRoot):
     # verify boot,config are files
     for n in nodes:
       r = self.db_net_get(n, '*')
-      #ip = str(r[r.find(':')+1:len(r)])
-      #sshflags = self.config.get('HpCloud','sshopt')
-      #user = self.config.get('HpCloud','user')
-      #config_path = self.config.get('HpCloud','config')
-      #app_path = self.config.get('HpCloud','app')
+      nip = str(r[r.find(':')+1:len(r)])
+
+      # random filename for keygen
+      keyfs = ''.join(random.choice(string.ascii_uppercase+string.digits) 
+          for x in range(6))
+      keypath = os.path.join(self.job_path,jobdir,n,keyfs)
+      keycmd = "ssh-keygen -t rsa -b 768 -q -N '' -C "+nip+" -f "+keypath
+      subprocess.call(keycmd, shell=True)
+
+      # update authorized_keys file
+      with open(self.config.get('Probe', 'keyfile'), "a") as outfile:
+        with open(keypath+'.pub') as infile:
+          outfile.write("command='ssh "+nip+"'")
+          outfile.write(infile.read())
+      
+      # read in private key
+      pkey = '' 
+      pkey += open(keypath, 'rU').read()
+      print pkey
+      
       #####
       #load_config = "scp "+sshflags+' '+config.name+' '+user+"@"+ip+":"+config_path
       #load_app = "scp "+sshflags+' '+img.name+' '+user+"@"+ip+":"+app_path
-      #load_kernel = "ssh "+sshflags+' '+user+"@"+ip+" sudo kexec -t multiboot-x86 \
-#--modu#le="+config_path+" -l "+app_path
-      #boot_kernel = "ssh "+sshflags+" -f "+user+"@"+ip+" sudo kexec -e \
-#> /dev#/null 2>&1"
-
+      #load_kernel = "ssh "+sshflags+' '+user+"@"+ip+" sudo kexec -t multiboot-x86  --modu#le="+config_path+" -l "+app_path
+      #boot_kernel = "ssh "+sshflags+" -f "+user+"@"+ip+" sudo kexec -e \ > /dev#/null 2>&1"
       #print subprocess.check_output(load_config, shell=True)
       #print subprocess.check_output(load_app, shell=True)
       #print subprocess.check_output(load_kernel, shell=True)
       #print subprocess.check_output(boot_kernel, shell=True)
 
-    print "call into hpget", job, count, option
-
-  def install(self):
-    # create db directories (if needed)
-    for s in self.config.options("BaseDirectories"):
-      d = self.config.get("BaseDirectories", s)
-      if os.path.exists(os.path.join(self.db_path, d)) == 0:
-        os.mkdir(os.path.join(self.db_path, d))
-    # create db files (if needed)
-    for s in self.config.options("BaseFiles"):
-      d = self.config.get("BaseFiles", s)
-      if os.path.exists(os.path.join(self.db_path, d)) == 0:
-        self.touch(os.path.join(self.db_path, d))
+    print "call into kh get (probe)", job, count, option
 
 
   def rm(self, job):
@@ -127,14 +125,17 @@ class KhProbe(KhRoot):
     # swap in experiment
     expcmd = self.config.get('Probe', 'expcmd')
     subprocess.call(expcmd, shell=True)
-    # wait for job tobe  active
+    print expcmd
+    # wait for job activate
     print "Waiting for Probe experiment to swap in..."
     waitcmd = cmd+" expwait -e SESA,"+exp+" active"
     subprocess.call(waitcmd, shell=True)
-    # record ids of nodes
+    # record nodes names
     listcmd = cmd+" node_list -p -e SESA,"+exp
     list = subprocess.check_output(listcmd, shell=True).split()
-    for i in range(len(list)):
+    print list
+    for i in range(count):
+      print i, list[i]
       self.db_net_set(i, list[i])
     KhRoot.init(self, count)
 
