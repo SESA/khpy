@@ -1,13 +1,13 @@
-from kh_base import *
+from kh_root import *
 import os
 import stat
 
-class KhQemu(KhBase):
-  def __init__(self, configsrc):
-    KhBase.__init__(self, configsrc)
+class KhQemu(KhRoot):
+  def __init__(self, configsrc, dbpath):
+    KhRoot.__init__(self, configsrc, dbpath)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.db_path = os.getenv("KHDB")
+    self.db_path = dbpath
     self.job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","jobdata"))
     self.data_job_path = os.path.join(self.db_path,
@@ -16,7 +16,7 @@ class KhQemu(KhBase):
   # cli parser methods   ################################################
 
   def parse_get(self, parser):
-    parser = KhBase.parse_get(self, parser)
+    parser = KhRoot.parse_get(self, parser)
     parser.add_argument('img', action=KH_store_required,
         type=file, help='Path to application')
     parser.add_argument('config', action=KH_store_required,
@@ -34,14 +34,14 @@ class KhQemu(KhBase):
     return parser
 
   def parse_rm(self, parser):
-    parser = KhBase.parse_rm(self, parser)
+    parser = KhRoot.parse_rm(self, parser)
     parser.set_defaults(func=self.rm)
     return parser
 
   # action methods ####################################################
 
   def get(self, job, count, img, config, option={}):
-    nodes = KhBase.get(self, job, count)
+    nodes = KhRoot.get(self, job, count)
     # TODO: return cookie?
     jobid = None
     # grab jobid from cookie?
@@ -106,7 +106,7 @@ class KhQemu(KhBase):
           print "Warning: process",pid,"not found."
           pass
     # remove from db
-    KhBase.rm(self, job)
+    KhRoot.rm(self, job)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address

@@ -8,48 +8,61 @@ import ConfigParser
 import os
 import sys
 
-# load envoirnment variables
+# kh configuration
 khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
-required_vars = ["KHDB", "KHTYPE"] #TODO: move into config
-missing_vars = False
-for i in required_vars:
-  if os.getenv(i) == None:
-    print "Error: missing environment variable",i
-    missing_vars = True
-if missing_vars:
-  exit()
-
-# verify location of database
-# TODO: check config for variable
-if os.path.exists(os.getenv("KHDB")) == 0:
-  print "Error: invalid $KHDB directory", os.getenv("KHDB")
-  exit()
-
-# import configuration
 Config = ConfigParser.SafeConfigParser()
 Config.read(os.path.join(khsrc,"kh.cfg"))
 
+def get_khtype():
+  cval = Config.get('global', 'type')
+  sval = os.getenv('KHTYPE')
+  # config trumps envoirment variable
+  if len(cval) > 0:
+    return cval
+  elif sval != None:
+    return sval
+  else:
+    print "Warning: no platform type has been specified."
+    return
+
+def get_dbpath():
+  cval = Config.get('global', 'db')
+  sval = os.getenv('KHDB')
+  dbpath = ""
+  # config trumps envoirment variable
+  if len(cval) > 0:
+    dbpath = cval
+  elif sval != None:
+    dbpath = sval
+  # verify path
+  if os.path.exists(dbpath) == 0:
+    print "Error: invalid db path ", dbpath
+    exit()
+  else:
+    return dbpath
+
 # Construct the specified kittyhawk object 
 def load_kh_type():
-  #TODO: allow alternative to envoirnment variable
-  env = os.getenv("KHTYPE")
-  configs=[os.path.join(khsrc,"kh_base.cfg")]
+  env = get_khtype()
+  dbpath = get_dbpath()
+  configs=[os.path.join(khsrc,"kh_root.cfg")]
   for i in Config.sections():
     if env == i:
       # load modules from src dir
+      fn  = 'kh_'+i
       cls = Config.get(i, 'class')
-      mod = __import__(i, fromlist=[cls])
+      mod = __import__(fn, fromlist=[cls])
       ref = getattr(mod, cls)
       # build configuration list
       configs.append(os.path.join(khsrc,Config.get(i,'config')))
-      # this constructs and returns kh object
-      return ref(configs)
+      # construct and returns kh object
+      return ref(configs, dbpath)
   # return base object if no platform was loaded
-  print "Warning: a recognized Kittyhawk type was not found. Loading root \
-  functionality only."
-  from kh_base import KhRoot
-  return KhRoot(configs)
+  print "Warning: a recognized Kittyhawk type was not found. Load root \
+functionality only."
+  from kh_root import KhRoot
+  return KhRoot(configs, dbpath)
 
 # create kh object
 kh = load_kh_type()

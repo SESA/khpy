@@ -38,10 +38,11 @@ class KH_store_optional(argparse._StoreAction):
 
 # Kittyhawk root object
 class KhRoot(object):
-  def __init__(self, configsrc):
+  def __init__(self, configsrc, dbpath):
+    print "im here...", configsrc, dbpath
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.db_path = os.getenv("KHDB")
+    self.db_path = dbpath
     self.data_node_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","nodes"))
     self.data_network_path = os.path.join(self.db_path,

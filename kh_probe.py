@@ -4,12 +4,12 @@ import random
 import string
 import time
 
-class KhProbe(KhRoot):
-  def __init__(self, configsrc):
+class KhProbe(KhRoot, dbpath):
+  def __init__(self, configsrc, dbpath):
     KhRoot.__init__(self, configsrc)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.db_path = os.getenv("KHDB")
+    self.db_path = dbpath
     self.job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","jobdata"))
     self.data_job_path = os.path.join(self.db_path,

@@ -1,12 +1,12 @@
-from kh_base import *
+from kh_root import *
 import time
 
 class KhHpCloud(KhBase):
-  def __init__(self, configsrc):
-    KhBase.__init__(self, configsrc)
+  def __init__(self, configsrc, dbpath):
+    KhBase.__init__(self, configsrc, dbpath)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.db_path = os.getenv("KHDB")
+    self.db_path = dbpath
     self.job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","jobdata"))
     self.data_job_path = os.path.join(self.db_path,
