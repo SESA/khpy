@@ -4,7 +4,7 @@ import random
 import string
 import time
 
-class KhProbeFront(KhRoot):
+class KhProbeClient(KhRoot):
   def __init__(self, configsrc, dbpath):
     KhRoot.__init__(self, configsrc, dbpath)
     self.config = ConfigParser.SafeConfigParser()
@@ -25,6 +25,10 @@ class KhProbeFront(KhRoot):
   def parse_get(self, parser):
     parser = KhRoot.parse_get(self, parser)
     parser.set_defaults(func=self.get)
+    return parser
+
+  def parse_info(self, parser):
+    parser.set_defaults(func=self.info)
     return parser
 
   def parse_init(self, parser):
@@ -48,21 +52,25 @@ class KhProbeFront(KhRoot):
   # action methods ####################################################
 
   def clean(self):
-    self.forward("clean")
+    self.forward_cmd("clean")
     None
 
   def console(self):
-    self.forward("console")
+    self.forward_cmd("console")
     None
-
-  def get(self, job, count):
-    self.forward_cmd("get "+job+" "+count)
-
-  def rm(self, job):
-    self.forward_cmd("rm "+job)
 
   def init(self, option={}):
     self.forward_cmd("init")
+
+  def info(self, option={}):
+    self.forward_cmd("info")
+
+  def get(self, job, count):
+    self.forward_cmd("get "+str(job)+" "+str(count))
+
+  def rm(self, job):
+    self.forward_cmd("rm "+str(job))
+
 
   # utility methods ####################################################
   
