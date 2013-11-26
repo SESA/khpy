@@ -39,7 +39,6 @@ class KH_store_optional(argparse._StoreAction):
 # Kittyhawk root object
 class KhRoot(object):
   def __init__(self, configsrc, dbpath):
-    print "im here...", configsrc, dbpath
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
     self.db_path = dbpath

@@ -1,12 +1,12 @@
-from kh_base import *
+from kh_root import *
 import getpass
 import random
 import string
 import time
 
-class KhProbe(KhRoot, dbpath):
+class KhProbe(KhRoot):
   def __init__(self, configsrc, dbpath):
-    KhRoot.__init__(self, configsrc)
+    KhRoot.__init__(self, configsrc, dbpath)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
     self.db_path = dbpath
@@ -50,12 +50,17 @@ class KhProbe(KhRoot, dbpath):
   # action methods ####################################################
 
   def clean(self):
-    proj = self.config.get('Probe', 'proj')
-    exp = self.config.get('Probe', 'exp')
-    cmd = self.config.get('Probe', 'cmd')
     self.db_net_rm('*','*')
-    cmd = cmd+" endexp -N -e "+proj+","+exp
+    # end experiment 
+    cmd = self.config.get('Probe', 'endcmd')
     subprocess.call(cmd, shell=True)
+    # clean keyfile
+    keysearch = "grep -v \"command='ssh\" " 
+    keysearch += self.config.get('Probe', 'keyfile')
+    keysearch += " > tmp && mv tmp "+self.config.get('Probe', 'keyfile')
+    subprocess.call(keysearch, shell=True)
+    # clean root directories
+    print "Clean complete"
     KhRoot.clean(self)
 
   def get(self, job, count, option={}):
@@ -88,18 +93,41 @@ class KhProbe(KhRoot, dbpath):
       pkey = '' 
       pkey += open(keypath, 'rU').read()
       print pkey
-      
-      #####
-      #load_config = "scp "+sshflags+' '+config.name+' '+user+"@"+ip+":"+config_path
-      #load_app = "scp "+sshflags+' '+img.name+' '+user+"@"+ip+":"+app_path
-      #load_kernel = "ssh "+sshflags+' '+user+"@"+ip+" sudo kexec -t multiboot-x86  --modu#le="+config_path+" -l "+app_path
-      #boot_kernel = "ssh "+sshflags+" -f "+user+"@"+ip+" sudo kexec -e \ > /dev#/null 2>&1"
-      #print subprocess.check_output(load_config, shell=True)
-      #print subprocess.check_output(load_app, shell=True)
-      #print subprocess.check_output(load_kernel, shell=True)
-      #print subprocess.check_output(boot_kernel, shell=True)
+    #####
+    #load_config = "scp "+sshflags+' '+config.name+' '+user+"@"+ip+":"+config_path
+    #load_app = "scp "+sshflags+' '+img.name+' '+user+"@"+ip+":"+app_path
+    #load_kernel = "ssh "+sshflags+' '+user+"@"+ip+" sudo kexec -t multiboot-x86  --modu#le="+config_path+" -l "+app_path
+    #boot_kernel = "ssh "+sshflags+" -f "+user+"@"+ip+" sudo kexec -e \ > /dev#/null 2>&1"
+    #print subprocess.check_output(load_config, shell=True)
+    #print subprocess.check_output(load_app, shell=True)
+    #print subprocess.check_output(load_kernel, shell=True)
+    #print subprocess.check_output(boot_kernel, shell=True)
 
-    print "call into kh get (probe)", job, count, option
+
+  def init(self, option={}):
+    count = int(self.config.get('Probe','instance_max'))
+    listcmd = self.config.get('Probe', 'listcmd')
+    imgcmd = self.config.get('Probe', 'imgloadcmd')
+    expcmd = self.config.get('Probe', 'expcmd')
+    # root cleanup
+    KhRoot.init(self, count)
+    # swap in experiment
+    subprocess.call(expcmd, shell=True)
+    # wait for job activate
+    #print "Waiting for Probe experiment to swap in..."
+    #waitcmd = cmd+" expwait -e SESA,"+exp+" active"
+    #subprocess.call(waitcmd, shell=True)
+    # record nodes names
+    list = subprocess.check_output(listcmd, shell=True).split()
+    print list
+    for i in range(count):
+      print i, list[i]
+      imgcmd += " "+list[i]
+      self.db_net_set(i, list[i])
+    # load our image
+    print imgcmd
+    subprocess.call(imgcmd, shell=True)
+
 
 
   def rm(self, job):
@@ -107,38 +135,31 @@ class KhProbe(KhRoot, dbpath):
       print "Error: no job record found"
       exit(1)
     nodes = KhRoot.db_node_get(self, '*', job, '*')
+    
+    keysearch = "grep -w -v \""
+    reboot = self.config.get('Probe', 'rebootcmd')
+    start = 0
     for n in nodes:
-      nid = str(n[0:n.find(':')])
-      # reboot node
-      cmd = "" #hpcloud servers:reboot kh_"+str(nid)
-      subprocess.call(cmd, shell=True)
-    while self.reboot_count() > 0:
-      time.sleep(3)
-    # TODO: verify ip persist across reboots
+      nid = str(n[0:n.find(':')]) 
+      # get network id
+      rec =  self.db_net_get(nid, '*')
+      netid = rec[rec.find(':')+1: len(rec)]
+      # construct key search string
+      if start == True:
+        keysearch += "\|"
+      else:
+        start = True
+      keysearch += netid
+      reboot += " "+netid
+    # Remove keys from authorized files
+    keysearch += "\""+self.config.get('Probe', 'keyfile')
+    keysearch += " > tmp && mv tmp "+self.config.get('Probe', 'keyfile')
+    subprocess.call(keysearch, shell=True)
+    # Reboot nodes on probe
+    print "Rebooting probe nodes"
+    subprocess.call(reboot, shell=True)
     KhRoot.rm(self,job)
       
-
-  def init(self, option={}):
-    exp = self.config.get('Probe', 'exp')
-    count = int(self.config.get('Probe','instance_max'))
-    cmd = self.config.get('Probe', 'cmd')
-    # swap in experiment
-    expcmd = self.config.get('Probe', 'expcmd')
-    subprocess.call(expcmd, shell=True)
-    print expcmd
-    # wait for job activate
-    print "Waiting for Probe experiment to swap in..."
-    waitcmd = cmd+" expwait -e SESA,"+exp+" active"
-    subprocess.call(waitcmd, shell=True)
-    # record nodes names
-    listcmd = cmd+" node_list -p -e SESA,"+exp
-    list = subprocess.check_output(listcmd, shell=True).split()
-    print list
-    for i in range(count):
-      print i, list[i]
-      self.db_net_set(i, list[i])
-    KhRoot.init(self, count)
-
 
   # database methods  ###################
 
