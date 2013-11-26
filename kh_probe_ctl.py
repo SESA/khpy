@@ -63,6 +63,7 @@ class KhProbe(KhRoot):
     print "Clean complete"
     KhRoot.clean(self)
 
+
   def get(self, job, count, option={}):
     nodes = KhRoot.get(self, job, count)
     # grab jobid from cookie?
@@ -75,14 +76,12 @@ class KhProbe(KhRoot):
     for n in nodes:
       r = self.db_net_get(n, '*')
       nip = str(r[r.find(':')+1:len(r)])
-
       # random filename for keygen
       keyfs = ''.join(random.choice(string.ascii_uppercase+string.digits) 
           for x in range(6))
       keypath = os.path.join(self.job_path,jobdir,n,keyfs)
       keycmd = "ssh-keygen -t rsa -b 768 -q -N '' -C "+nip+" -f "+keypath
       subprocess.call(keycmd, shell=True)
-
       # update authorized_keys file
       with open(self.config.get('Probe', 'keyfile'), "a") as outfile:
         with open(keypath+'.pub') as infile:
@@ -93,15 +92,6 @@ class KhProbe(KhRoot):
       pkey = '' 
       pkey += open(keypath, 'rU').read()
       print pkey
-    #####
-    #load_config = "scp "+sshflags+' '+config.name+' '+user+"@"+ip+":"+config_path
-    #load_app = "scp "+sshflags+' '+img.name+' '+user+"@"+ip+":"+app_path
-    #load_kernel = "ssh "+sshflags+' '+user+"@"+ip+" sudo kexec -t multiboot-x86  --modu#le="+config_path+" -l "+app_path
-    #boot_kernel = "ssh "+sshflags+" -f "+user+"@"+ip+" sudo kexec -e \ > /dev#/null 2>&1"
-    #print subprocess.check_output(load_config, shell=True)
-    #print subprocess.check_output(load_app, shell=True)
-    #print subprocess.check_output(load_kernel, shell=True)
-    #print subprocess.check_output(boot_kernel, shell=True)
 
 
   def init(self, option={}):
@@ -121,11 +111,9 @@ class KhProbe(KhRoot):
     list = subprocess.check_output(listcmd, shell=True).split()
     print list
     for i in range(count):
-      print i, list[i]
       imgcmd += " "+list[i]
       self.db_net_set(i, list[i])
     # load our image
-    print imgcmd
     subprocess.call(imgcmd, shell=True)
 
 
@@ -135,7 +123,6 @@ class KhProbe(KhRoot):
       print "Error: no job record found"
       exit(1)
     nodes = KhRoot.db_node_get(self, '*', job, '*')
-    
     keysearch = "grep -w -v \""
     reboot = self.config.get('Probe', 'rebootcmd')
     start = 0
