@@ -103,17 +103,13 @@ class KhProbe(KhRoot):
     KhRoot.init(self, count)
     # swap in experiment
     subprocess.call(expcmd, shell=True)
-    # wait for job activate
-    #print "Waiting for Probe experiment to swap in..."
-    #waitcmd = cmd+" expwait -e SESA,"+exp+" active"
-    #subprocess.call(waitcmd, shell=True)
     # record nodes names
     list = subprocess.check_output(listcmd, shell=True).split()
     print list
     for i in range(count):
       imgcmd += " "+list[i]
       self.db_net_set(i, list[i])
-    # load our image
+    # load our image to nodes
     subprocess.call(imgcmd, shell=True)
 
 
