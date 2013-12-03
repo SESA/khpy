@@ -26,6 +26,8 @@ class KhProbe(KhRoot):
 
   def parse_get(self, parser):
     parser = KhRoot.parse_get(self, parser)
+    parser.add_argument('keyc', action=KH_store_required, 
+        type=str, help='Public key for channel')
     parser.set_defaults(func=self.get)
     return parser
 
@@ -63,8 +65,7 @@ class KhProbe(KhRoot):
     print "Clean complete"
     KhRoot.clean(self)
 
-
-  def get(self, job, count, option={}):
+  def get(self, job, count, key):
     nodes = KhRoot.get(self, job, count)
     # grab jobid from cookie?
     jobid = None
@@ -76,24 +77,11 @@ class KhProbe(KhRoot):
     for n in nodes:
       r = self.db_net_get(n, '*')
       nip = str(r[r.find(':')+1:len(r)])
-      # random filename for keygen
-      keyfs = ''.join(random.choice(string.ascii_uppercase+string.digits) 
-          for x in range(6))
-      keypath = os.path.join(self.job_path,jobdir,n,keyfs)
-      #keycmd = "ssh-keygen -t rsa -b 768 -q -N '' -C "+nip+" -f "+keypath
-      print keypath
-      keycmd = "ssh-keygen -t rsa -q -N '' -f "+keypath
-      subprocess.call(keycmd, shell=True)
-      # update authorized_keys file
       # add public key to authorized_keys file
       with open(self.config.get('Probe', 'keyfile'), "a") as outfile:
         with open(keypath+'.pub') as infile:
           outfile.write("command=\"ssh "+nip+" $SSH_ORIGINAL_COMMAND\" ")
-          outfile.write(infile.read())
-      # read in private key
-      pkey = '' 
-      pkey += open(keypath, 'rU').read()
-      print pkey
+          outfile.write(key)
 
 
   def init(self, option={}):
