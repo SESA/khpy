@@ -80,14 +80,16 @@ class KhProbe(KhRoot):
       keyfs = ''.join(random.choice(string.ascii_uppercase+string.digits) 
           for x in range(6))
       keypath = os.path.join(self.job_path,jobdir,n,keyfs)
-      keycmd = "ssh-keygen -t rsa -b 768 -q -N '' -C "+nip+" -f "+keypath
+      #keycmd = "ssh-keygen -t rsa -b 768 -q -N '' -C "+nip+" -f "+keypath
+      print keypath
+      keycmd = "ssh-keygen -t rsa -q -N '' -f "+keypath
       subprocess.call(keycmd, shell=True)
       # update authorized_keys file
+      # add public key to authorized_keys file
       with open(self.config.get('Probe', 'keyfile'), "a") as outfile:
         with open(keypath+'.pub') as infile:
-          outfile.write("command='ssh "+nip+"'")
+          outfile.write("command=\"ssh "+nip+" $SSH_ORIGINAL_COMMAND\" ")
           outfile.write(infile.read())
-      
       # read in private key
       pkey = '' 
       pkey += open(keypath, 'rU').read()
