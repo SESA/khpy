@@ -1,7 +1,10 @@
 from kh_root import *
 import getpass
 import random
+import re
+import signal
 import string
+import subprocess
 import time
 
 class KhProbe(KhRoot):
@@ -26,7 +29,7 @@ class KhProbe(KhRoot):
 
   def parse_get(self, parser):
     parser = KhRoot.parse_get(self, parser)
-    parser.add_argument('keyc', action=KH_store_required, 
+    parser.add_argument('key', nargs="+", action=KH_store_required, 
         type=str, help='Public key for channel')
     parser.set_defaults(func=self.get)
     return parser
@@ -51,13 +54,54 @@ class KhProbe(KhRoot):
 
   # action methods ####################################################
 
+  def console(self, nid):
+    re1='.*?' # Non-greedy match 
+    re2='(?:[a-z][a-z]*[0-9]+[a-z0-9]*)' # alphanum
+    re3='(\\d+)'  # Integer 
+    rg = re.compile(re1+re2+re1+'('+re2+')'+re1+re3,re.IGNORECASE|re.DOTALL)
+    r = self.db_net_get(nid, '*')
+    # verify valid id
+    if r == None:
+      print "Error, invalid node id"
+    netid = r[r.find(':')+1: len(r)]
+
+    # assume we have a valid destination
+    mapfile = self.config.get('Probe', 'mapfile')
+    entry = ""
+    tn_server=""
+    tn_port=""
+    with open(mapfile) as f:
+      for line in f: 
+        if netid in line:
+          entry = line
+      if entry == "":
+        print "Error: no entry found"
+    m = rg.search(entry)
+    if m:
+      tn_server=m.group(1)
+      tn_port=int(m.group(2))+2000
+    else:
+      print "Error: entry is garbage", entry
+
+    # setup an SSH tunnel
+    ssht = "ssh -fnNTL "+str(tn_port)+":"+tn_server+":"+str(tn_port)+" marmot"
+    subprocess.call(ssht, shell=True)
+    # get pid of latest ssh
+    pid = int(subprocess.check_output("pgrep -n -x ssh", shell=True))
+    # connect to telnet
+    tn_cmd = "telnet localhost "+str(tn_port)
+    subprocess.call(tn_cmd, shell=True)
+    # kill ssh tunnel once user has closed telnet connection
+    os.kill(pid, signal.SIGKILL)
+
+
   def clean(self):
     self.db_net_rm('*','*')
     # end experiment 
     cmd = self.config.get('Probe', 'endcmd')
     subprocess.call(cmd, shell=True)
     # clean keyfile
-    keysearch = "grep -v \"command='ssh\" " 
+    keysearch = "grep -w -v \"command='ssh\" " 
     keysearch += self.config.get('Probe', 'keyfile')
     keysearch += " > tmp && mv tmp "+self.config.get('Probe', 'keyfile')
     subprocess.call(keysearch, shell=True)
@@ -65,23 +109,21 @@ class KhProbe(KhRoot):
     print "Clean complete"
     KhRoot.clean(self)
 
-  def get(self, job, count, key):
+  def get(self, job, count, keybits):
+    key = ''
+    ## FIXME:
+    # hard-code count == 1
+    count = 1
     nodes = KhRoot.get(self, job, count)
-    # grab jobid from cookie?
-    jobid = None
-    for file in os.listdir(self.data_job_path):
-      if fnmatch.fnmatch(file, job+":*"):
-        jobid = str(file).split(':')[1];
-    jobdir = self.job_path+'/'+str(jobid)
-    # verify boot,config are files
+    for i in range(len(keybits)):
+      key += keybits[i]+" "
     for n in nodes:
       r = self.db_net_get(n, '*')
       nip = str(r[r.find(':')+1:len(r)])
       # add public key to authorized_keys file
       with open(self.config.get('Probe', 'keyfile'), "a") as outfile:
-        with open(keypath+'.pub') as infile:
-          outfile.write("command=\"ssh "+nip+" $SSH_ORIGINAL_COMMAND\" ")
-          outfile.write(key)
+        outfile.write("command=\"ssh "+nip+" $SSH_ORIGINAL_COMMAND\" ")
+        outfile.write(key+'\n')
 
 
   def init(self, option={}):
@@ -101,7 +143,6 @@ class KhProbe(KhRoot):
       self.db_net_set(i, list[i])
     # load our image to nodes
     subprocess.call(imgcmd, shell=True)
-
 
 
   def rm(self, job):
@@ -139,6 +180,7 @@ class KhProbe(KhRoot):
   def db_net_get(self, node, net):
     f = str(node)+":"+str(net)
     for file in os.listdir(self.data_net_path):
+      # return first match
       if fnmatch.fnmatch(file, f):
         return file
     return None
