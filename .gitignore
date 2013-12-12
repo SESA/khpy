@@ -1,3 +1,7 @@
+# ignore root config changes
+kh.cfg
+
+#
 *.py[cod]
 
 # C extensions
