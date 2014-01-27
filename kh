@@ -23,7 +23,7 @@ def get_khtype():
   elif sval != None:
     return sval
   else:
-    print "Warning: no platform type has been specified."
+    print "Warning: no module type has been specified."
     return
 
 def get_dbpath():
@@ -49,13 +49,18 @@ def load_kh_type():
   configs=[os.path.join(khsrc,"kh_root.cfg")]
   for i in Config.sections():
     if env == i:
-      # load modules from src dir
-      fn  = 'kh_'+i
+      # load configuration info
+      path = Config.get(i,'path')
+      fn = Config.get(i,  'mod')
       cls = Config.get(i, 'class')
+      cfg = Config.get(i, 'config')
+      # include mod directory
+      sys.path.append(path)
+      # dynamically import module 
       mod = __import__(fn, fromlist=[cls])
       ref = getattr(mod, cls)
       # build configuration list
-      configs.append(os.path.join(khsrc,Config.get(i,'config')))
+      configs.append(os.path.join(khsrc, cfg))
       # construct and returns kh object
       return ref(configs, dbpath)
   # return base object if no platform was loaded
@@ -70,22 +75,22 @@ kh = load_kh_type()
 # Command-line parsers for core kittyhawk commands
 par    = argparse.ArgumentParser()
 subpar = par.add_subparsers()
+# alloc
+kh.parse_alloc(subpar.add_parser('alloc', 
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Allocate node for a given network"))
 # clean
 kh.parse_clean(subpar.add_parser('clean',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Remove all user, empty free pool"))
+  description="Remove all network and nodes"))
 # console
 kh.parse_console(subpar.add_parser('console',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Get console of allocated instance"))
-# get
-kh.parse_get(subpar.add_parser('get', 
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Allocate instances for a given user"))
+  description="Get broadcast console on network"))
 # info
 kh.parse_info(subpar.add_parser('info',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="List users"))
+  description="List networks and nodes"))
 # init
 kh.parse_init(subpar.add_parser('init',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -94,10 +99,14 @@ kh.parse_init(subpar.add_parser('init',
 kh.parse_install(subpar.add_parser('install',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
   description="Create empty database structure"))
-# rm
-kh.parse_rm(subpar.add_parser('rm',
+# network
+kh.parse_network(subpar.add_parser('network', 
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Remove user, free assigned nodes"))
+  description="Allocate network"))
+# remove
+kh.parse_remove(subpar.add_parser('remove',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+  description="Remove network and free allocated nodes"))
 
 # parse input 
 clinput = vars(par.parse_args())

@@ -13,10 +13,10 @@ class KhQemu(KhRoot):
     self.data_job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
 
-  # cli parser methods   ################################################
+  # cli parser methods   ###############################################
 
-  def parse_get(self, parser):
-    parser = KhRoot.parse_get(self, parser)
+  def parse_alloc(self, parser):
+    parser = KhRoot.parse_alloc(self, parser)
     parser.add_argument('img', action=KH_store_required,
         type=file, help='Path to application')
     parser.add_argument('config', action=KH_store_required,
@@ -30,18 +30,23 @@ class KhQemu(KhRoot):
         equivalent to '-i -x'")
     parser.add_argument('-g', action=KH_store_optional,
         help='GDB debug starting port number')
-    parser.set_defaults(func=self.get)
+    parser.set_defaults(func=self.alloc)
     return parser
 
-  def parse_rm(self, parser):
-    parser = KhRoot.parse_rm(self, parser)
-    parser.set_defaults(func=self.rm)
+  def parse_network(self, parser):
+    parser = KhRoot.parse_network(self, parser)
+    parser.set_defaults(func=self.network)
+    return parser
+
+  def parse_remove(self, parser):
+    parser = KhRoot.parse_remove(self, parser)
+    parser.set_defaults(func=self.remove)
     return parser
 
   # action methods ####################################################
 
-  def get(self, job, count, img, config, option={}):
-    nodes = KhRoot.get(self, job, count)
+  def alloc(self, job, count, img, config, option={}):
+    nodes = KhRoot.alloc(self, job, count)
     # TODO: return cookie?
     jobid = None
     # grab jobid from cookie?
@@ -84,8 +89,43 @@ class KhQemu(KhRoot):
       cmd += " >"+nodedir+"/error.log 2>&1 &" 
       subprocess.call(cmd, shell=True)
 
+  def network(self, name):
+    nid = KhRoot.network(self,name)
+    # TODO: move all this into a config file
+    user = "root"
+    tapcmd = "tunctl -b -u "+user
+    netmask = "255.255.255.0"
+    hostip = "10."+str(nid)+"."+str(nid)+".1"
+    dhcp_start = "10."+str(nid)+"."+str(nid)+".50"    
+    dhcp_end = "10."+str(nid)+"."+str(nid)+".150"    
+    netpath = os.path.join(self.job_path, str(nid))
 
-  def rm(self, job):
+    # generate tap
+    tapfile = os.path.join(netpath, 'tap')
+    KhRoot.touch(self,tapfile)
+    tap = subprocess.check_output(tapcmd, shell=True).rstrip()
+    if os.path.isfile(tapfile) == 1:
+      with open(tapfile, "a") as f:
+        f.seek(0)
+        f.truncate()
+        f.write(str(tap))
+
+    # configure interface
+    ipcmd = "ifconfig "+tap+" "+hostip+" netmask "+netmask+" up"
+    # enable dhcp
+    dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
+--dhcp-range="+dhcp_start+","+dhcp_end+",12h"
+    # start virtual network
+    vdecmd = "vde_switch -sock "+netpath+"/vde_sock -daemon -tap "+tap+" -M \
+"+netpath+"/vde_mgmt -p "+netpath+"/vde_pid"
+    subprocess.check_output(ipcmd, shell=True)
+    subprocess.check_output(dnscmd, shell=True)
+    subprocess.check_output(vdecmd, shell=True)
+    print nid
+
+
+
+  def remove(self, job):
     jobinfo = self.db_job_get(job, '*')
     if(jobinfo == None):
       print "Error: job",job,"not found."
@@ -105,12 +145,12 @@ class KhQemu(KhRoot):
         except OSError:
           print "Warning: process",pid,"not found."
           pass
-    # remove from db
-    KhRoot.rm(self, job)
+    # remove record
+    KhRoot.remove(self, job)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address
-# ranges
+# ranges:
 #
 #x2-xx-xx-xx-xx-xx
 #x6-xx-xx-xx-xx-xx
@@ -118,7 +158,6 @@ class KhQemu(KhRoot):
 #xE-xx-xx-xx-xx-xx
 # format we use 02:f(<inode>):nodenum
 # ip then uses prefix 10.0 with last to octets of mac
-
   def generate_mac(self, nid):
     sig = str(self.inode())
     nodeid = '0x%02x' % int(nid)
@@ -126,10 +165,10 @@ class KhQemu(KhRoot):
     mark = nodeid.find('x')
     return macprefix+':'+nodeid[mark+1:mark+3]
   
-
   def inode(self):
     path = (os.path.abspath(__file__))
     if path:
      return '0x%016x' % int(os.stat(path)[stat.ST_INO])
     else:
       return None
+

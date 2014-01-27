@@ -49,7 +49,15 @@ class KhRoot(object):
     self.data_job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
 
-  # command parse methods  ################################################
+  # Default command parsers ##########################################
+
+  def parse_alloc(self, parser):
+    parser.set_defaults(func=self.alloc)
+    parser.add_argument('job',type=str,action=KH_store_required, 
+      help="Name of user")
+    parser.add_argument('count',type=int,action=KH_store_required, 
+      help="Amount of instances")
+    return parser
 
   def parse_clean(self, parser):
     parser.set_defaults(func=self.clean)
@@ -61,14 +69,6 @@ class KhRoot(object):
     parser.set_defaults(func=self.console)
     return parser
 
-  def parse_get(self, parser):
-    parser.set_defaults(func=self.get)
-    parser.add_argument('job',type=str,action=KH_store_required, 
-      help="Name of user")
-    parser.add_argument('count',type=int,action=KH_store_required, 
-      help="Amount of instances")
-    return parser
-
   def parse_info(self, parser):
     parser.set_defaults(func=self.info)
     return parser
@@ -77,33 +77,26 @@ class KhRoot(object):
     parser.set_defaults(func=self.install)
     return parser
 
-  def parse_rm(self, parser):
+  def parse_network(self, parser):
+    parser.add_argument('job', action=KH_store_required,
+      help="Name of network")
+    parser.set_defaults(func=self.network)
+    return parser
+
+  def parse_remove(self, parser):
     # TODO: allow '*' and User1, User2...
     parser.add_argument('job', action=KH_store_required,
-      help="Name of user")
-    parser.set_defaults(func=self.rm)
+      help="Name of network")
+    parser.set_defaults(func=self.remove)
     return parser
 
   def parse_init(self, parser):
     parser.set_defaults(func=self.init)
     return parser
 
-  # action methods ####################################################
+  # Default actions ####################################################
 
-  def clean(self):
-    ''' remove node files '''
-    self.db_node_rm('*','*','*')
-    self.db_job_rm('*','*')
-    ''' remove job data subdirectories '''
-    datapath = os.path.join(self.db_path,
-        self.config.get("BaseDirectories", "jobdata"))
-    shutil.rmtree(datapath)
-    os.mkdir(datapath)
-
-  def console(self, key):
-    print "Console support is not available."
-
-  def get(self, job, count):
+  def alloc(self, job, count):
     ''' 
     Input: job name, instance count
     Output: node cookies
@@ -114,8 +107,10 @@ class KhRoot(object):
       if fnmatch.fnmatch(file, job+":*"):
         jobid = str(file).split(':')[1];
         break
-    if jobid == None: #if not, setup new job
-      jobid = self.db_job_set(job) 
+    if jobid == None: 
+      print "Error: network not found"
+      exit(1) 
+      #jobid = self.db_job_set(job) 
     # create data directory
     datapath = os.path.join(self.db_path,
         self.config.get("BaseDirectories", "jobdata")+'/'+str(jobid))
@@ -139,6 +134,21 @@ class KhRoot(object):
     return gotlist
 
 
+  def clean(self):
+    ''' remove node files '''
+    self.db_node_rm('*','*','*')
+    self.db_job_rm('*','*')
+    ''' remove job data subdirectories '''
+    datapath = os.path.join(self.db_path,
+        self.config.get("BaseDirectories", "jobdata"))
+    shutil.rmtree(datapath)
+    os.mkdir(datapath)
+
+
+  def console(self, key):
+    print "Console support is not available."
+
+
   def info(self):
     # list each app and the number of nodes
     for file in os.listdir(self.data_job_path):
@@ -146,6 +156,25 @@ class KhRoot(object):
       jobid = file[file.find(':')+1:len(file)]
       nodes = self.db_node_get('*',job,jobid)
       print job, jobid, len(nodes)
+
+
+  def init(self, count=0):
+    self.clean()
+    if count == 0:
+      count=self.config.getint("Defaults", "instance_count")
+    # set record for each node 
+    for i in range(count):
+      self.db_node_set(i, self.config.get('Settings','FreeOwner'),
+          self.config.get('Settings','FreeJobID'))
+    # set ids to default  
+    for s in self.config.options("BaseFiles"):
+      d = self.config.get("BaseFiles", s)
+      if os.path.isfile(os.path.join(self.db_path, d)) == 1:
+        with open(self.db_path+'/'+self.config.get('BaseFiles', s), "a") as f:
+          f.seek(0)
+          f.truncate()
+          f.write(self.config.get('Defaults',s))
+    print "Setup complete."
 
 
   def install(self):
@@ -160,7 +189,20 @@ class KhRoot(object):
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
         self.touch(os.path.join(self.db_path, d))
 
-  def rm(self, job):
+
+  def network(self, job):
+    for file in os.listdir(self.data_job_path):
+      if fnmatch.fnmatch(file, job+":*"):
+        print "Error: network '"+job+"' already exists"
+        exit(1) 
+    # make directory
+    jid =  self.db_job_set(job) 
+    if os.path.exists(os.path.join(self.job_path, str(jid))) == 0:
+        os.mkdir(os.path.join(self.job_path, str(jid)))
+    return jid
+
+
+  def remove(self, job):
     record = self.db_job_get(job, '*')
     if record == None:
       print "Error: no job record found"
@@ -181,23 +223,6 @@ class KhRoot(object):
       shutil.rmtree(datapath)
 
 
-  def init(self, count=0):
-    self.clean()
-    if count == 0:
-      count=self.config.getint("Defaults", "instance_count")
-    # set record for each node 
-    for i in range(count):
-      self.db_node_set(i, self.config.get('Settings','FreeOwner'),
-          self.config.get('Settings','FreeJobID'))
-    # set ids to default  
-    for s in self.config.options("BaseFiles"):
-      d = self.config.get("BaseFiles", s)
-      if os.path.isfile(os.path.join(self.db_path, d)) == 1:
-        with open(self.db_path+'/'+self.config.get('BaseFiles', s), "a") as f:
-          f.seek(0)
-          f.truncate()
-          f.write(self.config.get('Defaults',s))
-    print "Setup complete."
 
 
   # database methods ################################################
@@ -257,9 +282,9 @@ class KhRoot(object):
     fnew = self.data_node_path+ "/"+str(node)+":"+str(job)+":"+str(conid)
     self.touch(fnew)
   
-  # utility functions ################################################
+  # Defauly utility functions #############################################
 
-  # create empty file
+  # safely create an empty file
   def touch(self, fname, times=None):
     with file(fname, 'a'):
       os.utime(fname, times)
