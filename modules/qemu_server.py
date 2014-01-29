@@ -1,10 +1,10 @@
-from kh_root import *
+from kh_server import *
 import os
 import stat
 
-class KhQemu(KhRoot):
+class KhModule(KhServer):
   def __init__(self, configsrc, dbpath):
-    KhRoot.__init__(self, configsrc, dbpath)
+    KhServer.__init__(self, configsrc, dbpath)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
     self.db_path = dbpath
@@ -16,7 +16,7 @@ class KhQemu(KhRoot):
   # cli parser methods   ###############################################
 
   def parse_alloc(self, parser):
-    parser = KhRoot.parse_alloc(self, parser)
+    parser = KhServer.parse_alloc(self, parser)
     parser.add_argument('img', action=KH_store_required,
         type=file, help='Path to application')
     parser.add_argument('config', action=KH_store_required,
@@ -34,19 +34,19 @@ class KhQemu(KhRoot):
     return parser
 
   def parse_network(self, parser):
-    parser = KhRoot.parse_network(self, parser)
+    parser = KhServer.parse_network(self, parser)
     parser.set_defaults(func=self.network)
     return parser
 
   def parse_remove(self, parser):
-    parser = KhRoot.parse_remove(self, parser)
+    parser = KhServer.parse_remove(self, parser)
     parser.set_defaults(func=self.remove)
     return parser
 
   # action methods ####################################################
 
   def alloc(self, job, count, img, config, option={}):
-    nodes = KhRoot.alloc(self, job, count)
+    nodes = KhServer.alloc(self, job, count)
     # TODO: return cookie?
     jobid = None
     # grab jobid from cookie?
@@ -82,15 +82,23 @@ class KhQemu(KhRoot):
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # kernel 
-      cmd += " -kernel "+str(img.name)
+      cmd += " "+img+" "
+      #cmd += " -kernel "+str(img)
       # config
-      cmd += " -initrd "+str(config.name)
+      #cmd += " -initrd "+str(config)
       # error log (end of command)
-      cmd += " >"+nodedir+"/error.log 2>&1 &" 
+      cmd += " > "+nodedir+"/error.log 2>&1 &" 
+      print cmd
       subprocess.call(cmd, shell=True)
+      return "Node allocation sucessful" 
 
   def network(self, name):
-    nid = KhRoot.network(self,name)
+    nid = KhServer.network(self,name)
+
+    if nid == None:
+      print "Error: network '"+name+"' already exists"
+      exit(1)
+
     # TODO: move all this into a config file
     user = "root"
     tapcmd = "tunctl -b -u "+user
@@ -102,7 +110,7 @@ class KhQemu(KhRoot):
 
     # generate tap
     tapfile = os.path.join(netpath, 'tap')
-    KhRoot.touch(self,tapfile)
+    KhServer.touch(self,tapfile)
     tap = subprocess.check_output(tapcmd, shell=True).rstrip()
     if os.path.isfile(tapfile) == 1:
       with open(tapfile, "a") as f:
@@ -121,7 +129,7 @@ class KhQemu(KhRoot):
     subprocess.check_output(ipcmd, shell=True)
     subprocess.check_output(dnscmd, shell=True)
     subprocess.check_output(vdecmd, shell=True)
-    print nid
+    return nid
 
 
 
@@ -146,7 +154,7 @@ class KhQemu(KhRoot):
           print "Warning: process",pid,"not found."
           pass
     # remove record
-    KhRoot.remove(self, job)
+    KhServer.remove(self, job)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address

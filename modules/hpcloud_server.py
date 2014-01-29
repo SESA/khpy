@@ -1,9 +1,9 @@
-from kh_root import *
+from kh_server import *
 import time
 
-class KhHpCloud(KhBase):
+class HpCloudServer(KhServer):
   def __init__(self, configsrc, dbpath):
-    KhBase.__init__(self, configsrc, dbpath)
+    KhServer.__init__(self, configsrc, dbpath)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
     self.db_path = dbpath
@@ -17,12 +17,12 @@ class KhHpCloud(KhBase):
   # cli parser methods   ################################################
 
   def parse_clean(self, parser):
-    parser = KhBase.parse_clean(self, parser)
+    parser = KhServer.parse_clean(self, parser)
     parser.set_defaults(func=self.clean)
     return parser
 
   def parse_get(self, parser):
-    parser = KhBase.parse_get(self, parser)
+    parser = KhServer.parse_get(self, parser)
     parser.add_argument('img', action=KH_store_required,
         type=file, help='Path to application')
     parser.add_argument('config', action=KH_store_required,
@@ -31,7 +31,7 @@ class KhHpCloud(KhBase):
     return parser
 
   def parse_init(self, parser):
-    parser = KhBase.parse_init(self, parser)
+    parser = KhServer.parse_init(self, parser)
     dcount=self.config.get('HpCloud','instance_max')
     parser.add_argument('-c', action=KH_store_optional, default=dcount,
         type=int, help='Instance count to initilaize')
@@ -43,7 +43,7 @@ class KhHpCloud(KhBase):
     return parser
 
   def parse_rm(self, parser):
-    parser = KhBase.parse_rm(self, parser)
+    parser = KhServer.parse_rm(self, parser)
     parser.set_defaults(func=self.rm)
     return parser
 
@@ -51,17 +51,17 @@ class KhHpCloud(KhBase):
   # action methods ####################################################
 
   def clean(self):
-    nodes = KhBase.db_node_get(self, '*', '*', '*')
+    nodes = KhServer.db_node_get(self, '*', '*', '*')
     for n in nodes:
       nid = str(n[0:n.find(':')])
       # kill node
       cmd = "hpcloud servers:remove kh_"+str(nid)
       subprocess.call(cmd, shell=True)
       # TODO: clean net records
-    KhBase.clean(self)
+    KhServer.clean(self)
 
   def get(self, job, count, img, config, option={}):
-    nodes = KhBase.get(self, job, count)
+    nodes = KhServer.get(self, job, count)
     # grab jobid from cookie?
     jobid = None
     for file in os.listdir(self.data_job_path):
@@ -108,7 +108,7 @@ class KhHpCloud(KhBase):
     if self.db_job_get(job, '*') == None:
       print "Error: no job record found"
       exit(1)
-    nodes = KhBase.db_node_get(self, '*', job, '*')
+    nodes = KhServer.db_node_get(self, '*', job, '*')
     for n in nodes:
       nid = str(n[0:n.find(':')])
       # reboot node
@@ -117,7 +117,7 @@ class KhHpCloud(KhBase):
     while self.reboot_count() > 0:
       time.sleep(3)
     # TODO: verify ip persist across reboots
-    KhBase.rm(self,job)
+    KhServer.rm(self,job)
       
   def init(self, option={}):
     if option.has_key('c') and c>0:
@@ -138,7 +138,7 @@ class KhHpCloud(KhBase):
       ip=subprocess.check_output(cmd, shell=True)
       self.db_net_set(i, ip)
     # setup remaining db records
-    KhBase.init(self, count)
+    KhServer.init(self, count)
 
 
   # database methods  ###################

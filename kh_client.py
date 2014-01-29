@@ -1,29 +1,61 @@
-from kh_root import *
+from kh_shared import *
+import ConfigParser 
 import getpass
 import random
 import string
 import time
+import xmlrpclib
 
-class KhClient(KhRoot):
-  def __init__(self, configsrc, dbpath):
-    KhRoot.__init__(self, configsrc, dbpath)
+# Kittyhawk root server object
+class KhClient():
+  def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
+    self.proxy = xmlrpclib.ServerProxy("http://localhost:8000/")
 
-  # cli parser methods   ################################################
+  # Defailt commmand parsers ################################################
+
+  def parse_extras(self, subpar):
+    # alloc
+    self.parse_alloc(subpar.add_parser('alloc', 
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Allocate node for a given network"))
+    # console
+    self.parse_console(subpar.add_parser('console',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Get broadcast console on network"))
+    # info
+    self.parse_info(subpar.add_parser('info',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="List my networks and nodes"))
+    # network
+    self.parse_network(subpar.add_parser('network', 
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Allocate a network"))
+    # remove
+    self.parse_remove(subpar.add_parser('remove',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Remove network and free allocated nodes"))
 
   def parse_alloc(self, parser):
-    parser = KhRoot.parse_alloc(self, parser)
     parser.set_defaults(func=self.alloc)
+    parser.add_argument('job',type=str,action=KH_store_required, 
+      help="Name of user")
+    parser.add_argument('img', action=KH_store_required,
+        type=str, help='path to application')
+    parser.add_argument('config', action=KH_store_required,
+        type=str, help='path to configuration')
+    parser.add_argument('-n', action=KH_store_optional,
+        help='Number of nodes')
     return parser
 
   def parse_clean(self, parser):
-    parser = KhRoot.parse_clean(self, parser)
     parser.set_defaults(func=self.clean)
     return parser
 
   def parse_console(self, parser):
-    parser = KhRoot.parse_console(self, parser)
+    parser.add_argument('key',action=KH_store_required,
+      help="Instance identifier")
     parser.set_defaults(func=self.console)
     return parser
 
@@ -31,58 +63,36 @@ class KhClient(KhRoot):
     parser.set_defaults(func=self.info)
     return parser
 
-  def parse_init(self, parser):
-    parser = KhRoot.parse_init(self, parser)
-    dcount=0 
-    parser.add_argument('-c', action=KH_store_optional, default=dcount,
-        type=int, help='Instance count to initilaize')
-    parser.set_defaults(func=self.init)
-    return parser
-
   def parse_network(self, parser):
+    parser.add_argument('job', action=KH_store_required,
+      help="Name of network")
     parser.set_defaults(func=self.network)
     return parser
 
-  def parse_install(self, parser):
-    parser.set_defaults(func=self.install)
-    return parser
-
   def parse_remove(self, parser):
-    parser = KhRoot.parse_rm(self, parser)
+    # TODO: allow '*' and Net1, Net2...
+    parser.add_argument('job', action=KH_store_required,
+      help="Name of network")
     parser.set_defaults(func=self.remove)
     return parser
 
-
   # action methods ####################################################
 
-  def alloc(self, job, count):
-    self.forward_cmd("get "+str(job)+" "+str(count))
+  def alloc(self, job, img, config):
+    print self.proxy.alloc(job, 1, img, config)
 
   def clean(self):
-    self.forward_cmd("clean")
-    None
+    print self.proxy.clean()
 
-  def console(self):
-    self.forward_cmd("console")
-    None
+  def console(self, nid):
+    print self.proxy.console(nid)
 
-  def init(self, option={}):
-    self.forward_cmd("init")
+  def info(self):
+    print self.proxy.info()
 
-  def info(self, option={}):
-    self.forward_cmd("info")
+  def network(self, name):
+    print self.proxy.network(name)
 
-  def rm(self, job):
-    self.forward_cmd("rm "+str(job))
+  def remove(self, job):
+    print self.proxy.network(job)
 
-
-  # utility methods ####################################################
-  
-  def forward_cmd(self, argstr):
-    print "Not yet implemented"
-    #front = self.config.get('ProbeFront', 'frontsvr')
-    #ctrl = self.config.get('ProbeFront', 'ctrlexp')
-    #cmd = "ssh -ttt "+front+" ssh "
-    #cmd += "$(ssh "+front+" '~/getctlnode "+ctrl+"')"
-    #cmd += "\" ~/khpy/kh "+argstr+"\""
-    #print subprocess.check_output(cmd, shell=True)

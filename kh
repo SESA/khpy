@@ -1,139 +1,76 @@
 #!/usr/bin/env python
 
-########################################
-#  Kittyhawk Command-line Interface    #
-########################################
+###############################################
+#  Kittyhawk Server Command-line Interface    #
+###############################################
+
+from kh_shared import *
 import argparse
 import ConfigParser 
 import os
 import sys
 
-# kh configuration
+''' Load kittyhawk configuration '''
 khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
 Config = ConfigParser.SafeConfigParser()
 Config.read(os.path.join(khsrc,"kh.cfg"))
 
-def get_khtype():
-  cval = Config.get('global', 'type')
-  sval = os.getenv('KHTYPE')
-  # config trumps envoirment variable
-  if len(cval) > 0:
-    return cval
-  elif sval != None:
-    return sval
-  else:
-    print "Warning: no module type has been specified."
-    return
 
-def get_dbpath():
-  cval = Config.get('global', 'db')
-  sval = os.getenv('KHDB')
-  dbpath = ""
-  # config trumps envoirment variable
-  if len(cval) > 0:
-    dbpath = cval
-  elif sval != None:
-    dbpath = sval
-  # verify path
-  if os.path.exists(dbpath) == 0:
-    print "Error: invalid db path ", dbpath
-    exit()
-  else:
-    return dbpath
+#''' Query for the configured kh extension '''
+#def get_khtype():
+#  cval = Config.get('global', 'type')
+#  sval = os.getenv('KHTYPE')
+#  # explicit config setting trumps any envoirment variables
+#  if len(cval) > 0:
+#    return cval
+#  elif sval != None:
+#    return sval
+#  else:
+#    print "Error: a recognized Kittyhawk extension was not found. Check \
+# configuration of set envoirnment variable."
+#    exit(1)
+#
 
-# Construct the specified kittyhawk object 
+''' Construct the specified kittyhawk object ''' 
 def load_kh_type():
-  env = get_khtype()
-  dbpath = get_dbpath()
-  configs=[os.path.join(khsrc,"kh_root.cfg")]
-  for i in Config.sections():
-    if env == i:
-      # load configuration info
-      path = Config.get(i,'path')
-      fn = Config.get(i,  'mod')
-      cls = Config.get(i, 'class')
-      cfg = Config.get(i, 'config')
-      # include mod directory
-      sys.path.append(path)
-      # dynamically import module 
-      mod = __import__(fn, fromlist=[cls])
-      ref = getattr(mod, cls)
-      # build configuration list
-      configs.append(os.path.join(khsrc, cfg))
-      # construct and returns kh object
-      return ref(configs, dbpath)
-  # return base object if no platform was loaded
-  print "Warning: a recognized Kittyhawk type was not found. Load root \
-functionality only."
-  from kh_root import KhRoot
-  return KhRoot(configs, dbpath)
+  #TODO: allow this to be env var (var = path to config file)
+  mod  = Config.get('module','module')
+  path = Config.get('module','module_path')
+  clas = Config.get('module','module_class')
+  config = Config.get('module','module_config')
+  # build configuration set
+  configs=[os.path.join(khsrc,"kh.cfg"), 
+      os.path.join(khsrc, "khdb.cfg"),
+      os.path.join(khsrc, config)]
+  # import, construct and returns kh object
+  sys.path.append(path)
+  f = __import__(mod, fromlist=[clas])
+  ref = getattr(f, clas)
+  return ref(configs)
 
-# create kh object
+# construct kh type from configuration
 kh = load_kh_type()
-  
+
 # Command-line parsers for core kittyhawk commands
 par    = argparse.ArgumentParser()
 subpar = par.add_subparsers()
-# alloc
-kh.parse_alloc(subpar.add_parser('alloc', 
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Allocate node for a given network"))
+
+''' The following are shared commands between client and 
+    server command-line interfaces. 
+'''
 # clean
 kh.parse_clean(subpar.add_parser('clean',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Remove all network and nodes"))
-# console
-kh.parse_console(subpar.add_parser('console',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Get broadcast console on network"))
+  description="Remove network, reset nodes"))
+
 # info
 kh.parse_info(subpar.add_parser('info',
   formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="List networks and nodes"))
-# init
-kh.parse_init(subpar.add_parser('init',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Initialize Kittyhawk environment, populate free pool"))
-# install
-kh.parse_install(subpar.add_parser('install',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Create empty database structure"))
-# network
-kh.parse_network(subpar.add_parser('network', 
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Allocate network"))
-# remove
-kh.parse_remove(subpar.add_parser('remove',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Remove network and free allocated nodes"))
+  description="List all networks and nodes"))
 
-# parse input 
-clinput = vars(par.parse_args())
+''' Add module-specific command line interface arguments '''
+kh.parse_extras(subpar)
 
-# call into command function with arguments
-if 'optional_args' in clinput:
-  clinput['required_args'].append('optional_args')
-if 'required_args' not in clinput:
-  clinput['func']()
-elif len(clinput['required_args']) == 1:
-  clinput['func']( clinput[clinput['required_args'][0]] )
-elif len(clinput['required_args']) == 2:
-  clinput['func']( clinput[clinput['required_args'][0]], 
-      clinput[clinput['required_args'][1]] )
-elif len(clinput['required_args']) == 3:
-  clinput['func']( clinput[clinput['required_args'][0]], 
-      clinput[clinput['required_args'][1]],
-      clinput[clinput['required_args'][2]] )
-elif len(clinput['required_args']) == 4:
-  clinput['func']( clinput[clinput['required_args'][0]], 
-      clinput[clinput['required_args'][1]],
-      clinput[clinput['required_args'][2]],
-      clinput[clinput['required_args'][3]] )
-elif len(clinput['required_args']) == 5:
-  clinput['func']( clinput[clinput['required_args'][0]], 
-      clinput[clinput['required_args'][1]],
-      clinput[clinput['required_args'][2]],
-      clinput[clinput['required_args'][3]],
-      clinput[clinput['required_args'][4]] )
-# follow the above pattern to extend for 6+ parameters
+''' process the command line input '''
+process_input(vars(par.parse_args()))

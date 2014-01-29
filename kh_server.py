@@ -3,6 +3,7 @@
 #  - root platform class                 #
 ##########################################
 
+from kh_shared import *
 import argparse
 import ConfigParser 
 import copy 
@@ -11,33 +12,29 @@ import os
 import shutil
 import subprocess
 
-def _ensure_value(namespace, name, value):
-    if getattr(namespace, name, None) is None:
-        setattr(namespace, name, value)
-    return getattr(namespace, name)
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+import xmlrpclib
 
-# our custom parameterizers
-class KH_store_required(argparse.Action):
-  def __call__(self, parser, namespace, values, option_string=None):
-    items = copy.copy(_ensure_value(namespace, 'required_args', []))
-    items.append(self.dest)
-    setattr(namespace, 'required_args', items)
-    setattr(namespace, self.dest, values)
+# Kittyhawk root server object
+class KhServer(object):
 
-class KH_store_optional_const(argparse._StoreConstAction):
-  def __call__(self, parser, namespace, values, option_string=None):
-    items = copy.copy(_ensure_value(namespace, 'optional_args', {}))
-    items[self.dest] = self.const
-    setattr(namespace, 'optional_args', items)
-    
-class KH_store_optional(argparse._StoreAction):
-  def __call__(self, parser, namespace, values, option_string=None):
-    items = copy.copy(_ensure_value(namespace, 'optional_args', {}))
-    items[self.dest] = values
-    setattr(namespace, 'optional_args', items)
+  ''' local filesystem database '''
+  def get_dbpath():
+    cval = Config.get('global', 'db')
+    sval = os.getenv('KHDB')
+    dbpath = ""
+    # explicit config setting trumps any envoirment variables
+    if len(cval) > 0:
+      dbpath = cval
+    elif sval != None:
+      dbpath = sval
+    # verify path
+    if os.path.exists(dbpath) == 0:
+      print "Error: invalid db path ", dbpath
+      exit()
+    else:
+      return dbpath
 
-# Kittyhawk root object
-class KhRoot(object):
   def __init__(self, configsrc, dbpath):
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
@@ -51,56 +48,46 @@ class KhRoot(object):
 
   # Default command parsers ##########################################
 
-  def parse_alloc(self, parser):
-    parser.set_defaults(func=self.alloc)
-    parser.add_argument('job',type=str,action=KH_store_required, 
-      help="Name of user")
-    parser.add_argument('count',type=int,action=KH_store_required, 
-      help="Amount of instances")
+  def parse_extras(self, subpar):
+    # install
+    kh.parse_install(subpar.add_parser('install',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Install Kittyhawk database "))
+    # up
+    kh.parse_up(subpar.add_parser('up',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Bring server online. Initialize freepool"))
+    # down
+    kh.parse_down(subpar.add_parser('down',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Take server offline"))
+    
+  def parse_install(self, parser):
+    parser.set_defaults(func=self.install)
     return parser
+
+  def parse_down(self, parser):
+    parser.set_defaults(func=self.down)
+    return parser
+
+  def parse_up(self, parser):
+    parser.set_defaults(func=self.up)
+    return parser
+
+  ''' below this line are shared commands '''
 
   def parse_clean(self, parser):
     parser.set_defaults(func=self.clean)
-    return parser
-
-  def parse_console(self, parser):
-    parser.add_argument('key',action=KH_store_required,
-      help="Instance identifier")
-    parser.set_defaults(func=self.console)
     return parser
 
   def parse_info(self, parser):
     parser.set_defaults(func=self.info)
     return parser
 
-  def parse_install(self, parser):
-    parser.set_defaults(func=self.install)
-    return parser
-
-  def parse_network(self, parser):
-    parser.add_argument('job', action=KH_store_required,
-      help="Name of network")
-    parser.set_defaults(func=self.network)
-    return parser
-
-  def parse_remove(self, parser):
-    # TODO: allow '*' and User1, User2...
-    parser.add_argument('job', action=KH_store_required,
-      help="Name of network")
-    parser.set_defaults(func=self.remove)
-    return parser
-
-  def parse_init(self, parser):
-    parser.set_defaults(func=self.init)
-    return parser
-
   # Default actions ####################################################
 
+  ''' Allocate a Node on a Network. Called through client interface '''
   def alloc(self, job, count):
-    ''' 
-    Input: job name, instance count
-    Output: node cookies
-    '''
     #check if job record exists
     jobid = None
     for file in os.listdir(self.data_job_path):
@@ -134,6 +121,7 @@ class KhRoot(object):
     return gotlist
 
 
+  ''' Clean all Nodes and Networks '''
   def clean(self):
     ''' remove node files '''
     self.db_node_rm('*','*','*')
@@ -144,11 +132,17 @@ class KhRoot(object):
     shutil.rmtree(datapath)
     os.mkdir(datapath)
 
+  ''' Clean all Nodes and Networks for a particular user '''
+  def clean_client(self):
+    return "Not yet supported"
 
+
+  ''' Console stream to a node '''
   def console(self, key):
     print "Console support is not available."
 
 
+  ''' Display all network information '''
   def info(self):
     # list each app and the number of nodes
     for file in os.listdir(self.data_job_path):
@@ -157,7 +151,12 @@ class KhRoot(object):
       nodes = self.db_node_get('*',job,jobid)
       print job, jobid, len(nodes)
 
+  ''' Display all network information for a particualr user'''
+  def info_client(self):
+    return "Not yet supported"
 
+
+  ''' Initilaize playform '''
   def init(self, count=0):
     self.clean()
     if count == 0:
@@ -177,6 +176,7 @@ class KhRoot(object):
     print "Setup complete."
 
 
+  ''' Install playform '''
   def install(self):
     # create db directories (if needed)
     for s in self.config.options("BaseDirectories"):
@@ -190,11 +190,12 @@ class KhRoot(object):
         self.touch(os.path.join(self.db_path, d))
 
 
+  ''' Allocate a network '''
   def network(self, job):
     for file in os.listdir(self.data_job_path):
       if fnmatch.fnmatch(file, job+":*"):
         print "Error: network '"+job+"' already exists"
-        exit(1) 
+        return None
     # make directory
     jid =  self.db_job_set(job) 
     if os.path.exists(os.path.join(self.job_path, str(jid))) == 0:
@@ -202,6 +203,7 @@ class KhRoot(object):
     return jid
 
 
+  ''' Remove a network, free nodes '''
   def remove(self, job):
     record = self.db_job_get(job, '*')
     if record == None:
@@ -222,7 +224,27 @@ class KhRoot(object):
     if os.path.exists(datapath) == 1:
       shutil.rmtree(datapath)
 
+  ''' Remove a network, free nodes. Client validation '''
+  def remove_client(self, job):
+    return "Not yet implemented"
 
+
+  ''' Bring server online '''
+  def up(self):
+    self.init();
+    server = SimpleXMLRPCServer(("localhost", 8000))
+    server.register_function(self.alloc)
+    server.register_function(self.clean_client, "clean")
+    server.register_function(self.console)
+    server.register_function(self.info_client, "info")
+    server.register_function(self.network)
+    server.register_function(self.remove_client, "remove")
+    print "Listening on localhost port 8000..."
+    server.serve_forever()
+
+  ''' Bring server offline '''
+  def down(self):
+    print "Server offline"
 
 
   # database methods ################################################
@@ -282,7 +304,9 @@ class KhRoot(object):
     fnew = self.data_node_path+ "/"+str(node)+":"+str(job)+":"+str(conid)
     self.touch(fnew)
   
-  # Defauly utility functions #############################################
+
+
+  # utility methods #############################################
 
   # safely create an empty file
   def touch(self, fname, times=None):
