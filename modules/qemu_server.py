@@ -2,58 +2,54 @@ from kh_server import *
 import os
 import stat
 
-class KhModule(KhServer):
-  def __init__(self, configsrc, dbpath):
-    KhServer.__init__(self, configsrc, dbpath)
+class QemuServer(KhServer):
+  def __init__(self, configsrc):
+    KhServer.__init__(self, configsrc)
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.db_path = dbpath
-    self.job_path = os.path.join(self.db_path,
+    self.db_path = self.config.get("database","path")
+    self.netpath = os.path.join(self.db_path,
         self.config.get("BaseDirectories","jobdata"))
-    self.data_job_path = os.path.join(self.db_path,
+    self.data_net_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
 
   # cli parser methods   ###############################################
 
-  def parse_alloc(self, parser):
-    parser = KhServer.parse_alloc(self, parser)
-    parser.add_argument('img', action=KH_store_required,
-        type=file, help='Path to application')
-    parser.add_argument('config', action=KH_store_required,
-        type=file, help='Path to configuration')
-    parser.add_argument('-i', action=KH_store_optional_const,
-        const=True, default=False, help='Enable internal network')
-    parser.add_argument('-x', action=KH_store_optional_const,
-        const=True, default=False, help='Enable external network')
-    parser.add_argument('-f', action=KH_store_optional_const,
-        const=True, default=False, help="Enable frontend,\
-        equivalent to '-i -x'")
-    parser.add_argument('-g', action=KH_store_optional,
-        help='GDB debug starting port number')
-    parser.set_defaults(func=self.alloc)
+  def parse_install(self, parser):
+    parser = KhServer.parse_install(self, parser)
+    parser.set_defaults(func=self.install)
     return parser
 
-  def parse_network(self, parser):
-    parser = KhServer.parse_network(self, parser)
-    parser.set_defaults(func=self.network)
+  def parse_down(self, parser):
+    parser = KhServer.parse_down(self, parser)
+    parser.set_defaults(func=self.down)
     return parser
 
-  def parse_remove(self, parser):
-    parser = KhServer.parse_remove(self, parser)
-    parser.set_defaults(func=self.remove)
+  def parse_up(self, parser):
+    parser = KhServer.parse_up(self, parser)
+    parser.set_defaults(func=self.up)
     return parser
 
-  # action methods ####################################################
+  def parse_clean(self, parser):
+    parser = KhServer.parse_clean(self, parser)
+    parser.set_defaults(func=self.clean)
+    return parser
 
-  def alloc(self, job, count, img, config, option={}):
-    nodes = KhServer.alloc(self, job, count)
-    # TODO: return cookie?
-    jobid = None
-    # grab jobid from cookie?
-    for file in os.listdir(self.data_job_path):
-      if fnmatch.fnmatch(file, job+":*"):
-        jobid = str(file).split(':')[1];
-    jobdir = self.job_path+'/'+str(jobid)
+  def parse_info(self, parser):
+    parser = KhServer.parse_info(self, parser)
+    parser.set_defaults(func=self.info)
+    return parser
+
+  # action methods #############################################
+
+  def alloc_client(self, nid, count, img, config, option={}):
+    nodes = KhServer.alloc_client(self, nid, count)
+    #jobid = None
+    ## grab jobid from cookie?
+    #for file in os.listdir(self.data_net_path):
+    #  if fnmatch.fnmatch(file, nid+":*"):
+    #    jobid = str(file).split(':')[1];
+    jobdir = self.netpath+'/'+str(nid)
 
     for node in nodes:
       nodedir = jobdir+'/'+str(node)
@@ -63,16 +59,16 @@ class KhModule(KhServer):
       if option.has_key('g') and option['g'] > 0:
         cmd += " -gdb tcp::"+option['g']
         option['g'] = str(int(option['g'])+1)
-      # internal network
-      if option.has_key('i') and option['i'] == True:
-        mac = self.generate_mac(node)
-        cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
-          -net bridge,vlan=2,br=brI"
-      # external network
-      if option.has_key('x') and option['x'] == True:
-        mac = self.generate_mac(node)
-        cmd +=" -net nic,vlan=2,model=virtio,macaddr="+mac+" \
-          -net bridge,vlan=2,br=brX"
+      ## internal network
+      #if option.has_key('i') and option['i'] == True:
+      #  mac = self.generate_mac(node)
+      #  cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
+      #    -net bridge,vlan=2,br=brI"
+      ## external network
+      #if option.has_key('x') and option['x'] == True:
+      #  mac = self.generate_mac(node)
+      #  cmd +=" -net nic,vlan=2,model=virtio,macaddr="+mac+" \
+      #    -net bridge,vlan=2,br=brX"
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
       # vnc socket
@@ -92,13 +88,11 @@ class KhModule(KhServer):
       subprocess.call(cmd, shell=True)
       return "Node allocation sucessful" 
 
-  def network(self, name):
-    nid = KhServer.network(self,name)
-
-    if nid == None:
-      print "Error: network '"+name+"' already exists"
-      exit(1)
-
+  def network(self):
+    nid = KhServer.network(self)
+    #if nid == None:
+    #  print "Error: network '"+name+"' already exists"
+    #  exit(1)
     # TODO: move all this into a config file
     user = "root"
     tapcmd = "tunctl -b -u "+user
@@ -106,7 +100,7 @@ class KhModule(KhServer):
     hostip = "10."+str(nid)+"."+str(nid)+".1"
     dhcp_start = "10."+str(nid)+"."+str(nid)+".50"    
     dhcp_end = "10."+str(nid)+"."+str(nid)+".150"    
-    netpath = os.path.join(self.job_path, str(nid))
+    netpath = os.path.join(self.netpath, str(nid))
 
     # generate tap
     tapfile = os.path.join(netpath, 'tap')
@@ -132,18 +126,17 @@ class KhModule(KhServer):
     return nid
 
 
-
-  def remove(self, job):
-    jobinfo = self.db_job_get(job, '*')
-    if(jobinfo == None):
-      print "Error: job",job,"not found."
+  def remove(self, net):
+    netinfo = self.db_job_get(net, '*')
+    if(netinfo == None):
+      print "Error: network ",net," not found."
       exit(1)
-    jobid = jobinfo[jobinfo.find(':')+1:len(jobinfo)]
-    nodes = self.db_node_get('*', job, jobid)
+    netid = netinfo[netinfo.find(':')+1:len(netinfo)]
+    nodes = self.db_node_get('*', net, netid)
     # remove processes
     for node in nodes:
       nid = node[0:node.find(':')]
-      path = self.job_path+'/'+str(jobid)+'/'+str(nid)+'/pid'
+      path = self.netpath+'/'+str(netid)+'/'+str(nid)+'/pid'
       if os.path.exists(path):
         with open(path, 'r') as f:
           pid = int(f.readline())
@@ -154,7 +147,7 @@ class KhModule(KhServer):
           print "Warning: process",pid,"not found."
           pass
     # remove record
-    KhServer.remove(self, job)
+    KhServer.remove(self, net)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address

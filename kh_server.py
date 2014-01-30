@@ -35,10 +35,12 @@ class KhServer(object):
     else:
       return dbpath
 
-  def __init__(self, configsrc, dbpath):
+  def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.db_path = dbpath
+    self.db_path = self.config.get("database","path")
+    self.netpath = os.path.join(self.db_path,
+        self.config.get("BaseDirectories","jobdata"))
     self.data_node_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","nodes"))
     self.data_network_path = os.path.join(self.db_path,
@@ -50,15 +52,15 @@ class KhServer(object):
 
   def parse_extras(self, subpar):
     # install
-    kh.parse_install(subpar.add_parser('install',
+    self.parse_install(subpar.add_parser('install',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Install Kittyhawk database "))
     # up
-    kh.parse_up(subpar.add_parser('up',
+    self.parse_up(subpar.add_parser('up',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Bring server online. Initialize freepool"))
     # down
-    kh.parse_down(subpar.add_parser('down',
+    self.parse_down(subpar.add_parser('down',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Take server offline"))
     
@@ -87,17 +89,11 @@ class KhServer(object):
   # Default actions ####################################################
 
   ''' Allocate a Node on a Network. Called through client interface '''
-  def alloc(self, job, count):
-    #check if job record exists
-    jobid = None
-    for file in os.listdir(self.data_job_path):
-      if fnmatch.fnmatch(file, job+":*"):
-        jobid = str(file).split(':')[1];
-        break
-    if jobid == None: 
-      print "Error: network not found"
-      exit(1) 
-      #jobid = self.db_job_set(job) 
+  def alloc_client(self, jobid, count):
+    #TODO verify network
+    #if jobid == None: 
+    #  print "Error: network not found"
+    #  exit(1) 
     # create data directory
     datapath = os.path.join(self.db_path,
         self.config.get("BaseDirectories", "jobdata")+'/'+str(jobid))
@@ -138,7 +134,7 @@ class KhServer(object):
 
 
   ''' Console stream to a node '''
-  def console(self, key):
+  def console_client(self, key):
     print "Console support is not available."
 
 
@@ -191,15 +187,15 @@ class KhServer(object):
 
 
   ''' Allocate a network '''
-  def network(self, job):
-    for file in os.listdir(self.data_job_path):
-      if fnmatch.fnmatch(file, job+":*"):
-        print "Error: network '"+job+"' already exists"
-        return None
+  def network_client(self):
+   # for file in os.listdir(self.data_job_path):
+   #   if fnmatch.fnmatch(file, job+":*"):
+   #     print "Error: network '"+job+"' already exists"
+   #     return None
     # make directory
-    jid =  self.db_job_set(job) 
-    if os.path.exists(os.path.join(self.job_path, str(jid))) == 0:
-        os.mkdir(os.path.join(self.job_path, str(jid)))
+    jid =  self.db_job_set() 
+    if os.path.exists(os.path.join(self.netpath, str(jid))) == 0:
+        os.mkdir(os.path.join(self.netpath, str(jid)))
     return jid
 
 
@@ -233,11 +229,11 @@ class KhServer(object):
   def up(self):
     self.init();
     server = SimpleXMLRPCServer(("localhost", 8000))
-    server.register_function(self.alloc)
+    server.register_function(self.alloc_client)
+    server.register_function(self.console_client)
+    server.register_function(self.network_client)
     server.register_function(self.clean_client, "clean")
-    server.register_function(self.console)
     server.register_function(self.info_client, "info")
-    server.register_function(self.network)
     server.register_function(self.remove_client, "remove")
     print "Listening on localhost port 8000..."
     server.serve_forever()
@@ -258,7 +254,7 @@ class KhServer(object):
     return None
 
   # Grab next jobid and assign it to job
-  def db_job_set(self, job): 
+  def db_job_set(self): 
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
     nextid=rid+1
     # increase jobid count
@@ -267,9 +263,9 @@ class KhServer(object):
       f.truncate()
       f.write(str(nextid))
     # setup db record
-    rpath = self.db_path+'/'+self.config.get('BaseDirectories','job')+\
-      '/'+str(job)+':'+str(rid)
-    self.touch(rpath)
+    #rpath = self.db_path+'/'+self.config.get('BaseDirectories','job')+\
+    #  '/'+str(job)+':'+str(rid)
+    #self.touch(rpath)
     return rid
 
   # remove DB record, return (expired) jobid

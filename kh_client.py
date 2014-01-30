@@ -39,8 +39,8 @@ class KhClient():
 
   def parse_alloc(self, parser):
     parser.set_defaults(func=self.alloc)
-    parser.add_argument('job',type=str,action=KH_store_required, 
-      help="Name of user")
+    parser.add_argument('network',type=str,action=KH_store_required, 
+      help="Network id")
     parser.add_argument('img', action=KH_store_required,
         type=str, help='path to application')
     parser.add_argument('config', action=KH_store_required,
@@ -64,8 +64,6 @@ class KhClient():
     return parser
 
   def parse_network(self, parser):
-    parser.add_argument('job', action=KH_store_required,
-      help="Name of network")
     parser.set_defaults(func=self.network)
     return parser
 
@@ -90,8 +88,8 @@ class KhClient():
   def info(self):
     print self.proxy.info()
 
-  def network(self, name):
-    print self.proxy.network(name)
+  def network(self):
+    print self.proxy.network()
 
   def remove(self, job):
     print self.proxy.network(job)
