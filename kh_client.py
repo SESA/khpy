@@ -15,11 +15,15 @@ class KhClient():
 
   # Defailt commmand parsers ################################################
 
-  def parse_extras(self, subpar):
+  def add_parsers(self, subpar):
     # alloc
     self.parse_alloc(subpar.add_parser('alloc', 
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Allocate node for a given network"))
+    # clean
+    self.parse_clean(subpar.add_parser('clean',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Remove network, reset nodes"))
     # console
     self.parse_console(subpar.add_parser('console',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,

@@ -22,14 +22,6 @@ remove
 
 
 ###Requirements: 
-python 2.x 
-python daemon library:
-  https://pypi.python.org/pypi/python-daemon/
-
-
-## TODO:
-persistant store of tap
-store of vde pid, mgt, ctl
-dealloc of tap, dnsmasq, vde
-expediate setup/install steps
+python 2.7 
+python-daemon 1.6
 

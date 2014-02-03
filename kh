@@ -32,7 +32,7 @@ Config.read(os.path.join(khsrc,"kh.cfg"))
 #    exit(1)
 #
 
-''' Construct the specified kittyhawk object ''' 
+''' Construct the specified module object ''' 
 def load_kh_type():
   #TODO: allow this to be env var (var = path to config file)
   mod  = Config.get('module','module')
@@ -41,7 +41,6 @@ def load_kh_type():
   config = Config.get('module','module_config')
   # build configuration set
   configs=[os.path.join(khsrc,"kh.cfg"), 
-      os.path.join(khsrc, "khdb.cfg"),
       os.path.join(khsrc, config)]
   # import, construct and returns kh object
   sys.path.append(path)
@@ -49,28 +48,11 @@ def load_kh_type():
   ref = getattr(f, clas)
   return ref(configs)
 
-# construct kh type from configuration
+# dynamically construct object from external config
 kh = load_kh_type()
 
-# Command-line parsers for core kittyhawk commands
+# Parser for command-line interface
 par    = argparse.ArgumentParser()
-subpar = par.add_subparsers()
-
-''' The following are shared commands between client and 
-    server command-line interfaces. 
-'''
-# clean
-kh.parse_clean(subpar.add_parser('clean',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="Remove network, reset nodes"))
-
-# info
-kh.parse_info(subpar.add_parser('info',
-  formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-  description="List all networks and nodes"))
-
-''' Add module-specific command line interface arguments '''
-kh.parse_extras(subpar)
-
-''' process the command line input '''
+kh.add_parsers(par.add_subparsers())
+''' process the command line input, jump to function '''
 process_input(vars(par.parse_args()))

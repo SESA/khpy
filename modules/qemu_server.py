@@ -20,16 +20,6 @@ class QemuServer(KhServer):
     parser.set_defaults(func=self.install)
     return parser
 
-  def parse_down(self, parser):
-    parser = KhServer.parse_down(self, parser)
-    parser.set_defaults(func=self.down)
-    return parser
-
-  def parse_up(self, parser):
-    parser = KhServer.parse_up(self, parser)
-    parser.set_defaults(func=self.up)
-    return parser
-
   def parse_clean(self, parser):
     parser = KhServer.parse_clean(self, parser)
     parser.set_defaults(func=self.clean)
@@ -41,6 +31,14 @@ class QemuServer(KhServer):
     return parser
 
   # action methods #############################################
+
+  def server_config(self):
+    return KhServerConfig(self.config.get('Qemu', 'server_ip'),
+      self.config.get('Qemu', 'server_port'),
+      self.config.get('Qemu', 'pidfile_path'),
+      self.config.get('Qemu', 'stdin_path'),
+      self.config.get('Qemu', 'stdout_path'),
+      self.config.get('Qemu', 'stderr_path'))
 
   def alloc_client(self, nid, count, img, config, option={}):
     nodes = KhServer.alloc_client(self, nid, count)
@@ -88,8 +86,8 @@ class QemuServer(KhServer):
       subprocess.call(cmd, shell=True)
       return "Node allocation sucessful" 
 
-  def network(self):
-    nid = KhServer.network(self)
+  def network_client(self):
+    nid = KhServer.network_client(self)
     #if nid == None:
     #  print "Error: network '"+name+"' already exists"
     #  exit(1)
@@ -104,7 +102,7 @@ class QemuServer(KhServer):
 
     # generate tap
     tapfile = os.path.join(netpath, 'tap')
-    KhServer.touch(self,tapfile)
+    touch(self,tapfile)
     tap = subprocess.check_output(tapcmd, shell=True).rstrip()
     if os.path.isfile(tapfile) == 1:
       with open(tapfile, "a") as f:
@@ -123,7 +121,7 @@ class QemuServer(KhServer):
     subprocess.check_output(ipcmd, shell=True)
     subprocess.check_output(dnscmd, shell=True)
     subprocess.check_output(vdecmd, shell=True)
-    return nid
+    return str(nid)+'\n'+str(hostip)
 
 
   def remove(self, net):
