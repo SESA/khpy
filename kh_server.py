@@ -37,23 +37,6 @@ class KhServerConfig(object):
 # Kittyhawk root server object
 class KhServer(object):
 
-  #''' local filesystem database '''
-  #def get_dbpath():
-  #  cval = Config.get('global', 'db')
-  #  sval = os.getenv('KHDB')
-  #  dbpath = ""
-  #  # explicit config setting trumps any envoirment variables
-  #  if len(cval) > 0:
-  #    dbpath = cval
-  #  elif sval != None:
-  #    dbpath = sval
-  #  # verify path
-  #  if os.path.exists(dbpath) == 0:
-  #    print "Error: invalid db path ", dbpath
-  #    exit()
-  #  else:
-  #    return dbpath
-
   def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
     configsrc.append("khdb.cfg")
@@ -67,10 +50,11 @@ class KhServer(object):
         self.config.get("BaseDirectories","network"))
     self.data_job_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
+    # debug info
+    self.debug = self.config.get("debug","debug")
     # deamon
     self.daemon_context = daemon.DaemonContext()
-    
-
+   
   # Default command parsers ##########################################
 
   def add_parsers(self, subpar):
@@ -124,8 +108,9 @@ class KhServer(object):
     return parser
 
 
-
-  # Default actions ####################################################
+  # Client actions ####################################################
+  #     these methods are called remotley, and should -eventually- contain
+  #     verification
 
   def alloc_client(self, jobid, count):
     ''' Allocate a Node on a Network. Called through client interface '''
@@ -139,8 +124,8 @@ class KhServer(object):
     if os.path.exists(datapath) == 0:
       os.mkdir(datapath)
     # get node id
-    nodes = self.db_node_get('*',self.config.get('Settings','FreeOwner'),
-        '*',count)
+    nodes = self.db_node_get('*',self.config.get('Settings','FreeJobID'),
+        count)
     # this check should be somewhere smarter..
     if len(nodes) == 0:
       print "Error: not enough free nodes available"
@@ -150,22 +135,11 @@ class KhServer(object):
     for node in nodes:
       nid = node[0:node.find(':')]
       gotlist.append(nid)
-      self.db_node_set(nid, job, jobid)
+      self.db_node_set(nid, jobid)
       if os.path.exists(datapath+'/'+str(nid)) == 0:
         os.mkdir(datapath+'/'+str(nid))
     return gotlist
 
-
-  def clean(self):
-    ''' Clean all nodes and networks '''
-    ''' remove node files '''
-    self.db_node_rm('*','*','*')
-    self.db_job_rm('*','*')
-    ''' remove job data subdirectories '''
-    datapath = os.path.join(self.db_path,
-        self.config.get("BaseDirectories", "jobdata"))
-    shutil.rmtree(datapath)
-    os.mkdir(datapath)
 
   def clean_client(self):
     ''' Clean all Nodes and Networks for a particular user '''
@@ -177,31 +151,46 @@ class KhServer(object):
     print "Console support is not yet available."
 
 
-  def info(self):
-    ''' Display all network information '''
-    # list each app and the number of nodes
-    for file in os.listdir(self.data_job_path):
-      job = file[0:file.find(':')]
-      jobid = file[file.find(':')+1:len(file)]
-      nodes = self.db_node_get('*',job,jobid)
-      print job, jobid, len(nodes)
-
   def info_client(self):
     ''' Display all network information for a particualr user'''
     return "Not yet supported"
 
+
+  def network_client(self):
+    ''' Allocate a network '''
+   # for file in os.listdir(self.data_job_path):
+   #   if fnmatch.fnmatch(file, job+":*"):
+   #     print "Error: network '"+job+"' already exists"
+   #     return None
+    # make directory
+    jid =  self.db_net_set() 
+    #if self.debug:
+    if os.path.exists(os.path.join(self.netpath, str(jid))) == 0:
+        os.mkdir(os.path.join(self.netpath, str(jid)))
+    self._print("Allocating network #"+str(jid), sys.stdout)
+    return jid
+
+
+  def remove_client(self, network):
+    ''' Remove a network, free nodes. Client validation '''
+    ## TODO: some sort of user validation
+    self.remove(network)
+
+
+  # Server actions ####################################################
+
+  ''' these methods are called directly, from the servers command line interface'''
+
   def init(self, count=0):
-    ''' Initilaize kittyhawk playform
-    
-        Reset counts to default. Free all nodes
+    ''' Initilaize the Kittyhawk playform
+
+        Reset counts to default. Reset node and network records
     '''
-    self.clean()
     if count == 0:
       count=self.config.getint("Defaults", "instance_count")
     # set record for each node 
     for i in range(count):
-      self.db_node_set(i, self.config.get('Settings','FreeOwner'),
-          self.config.get('Settings','FreeJobID'))
+      self.db_node_set(i, self.config.get('Settings','FreeJobID'))
     # set ids to default  
     for s in self.config.options("BaseFiles"):
       d = self.config.get("BaseFiles", s)
@@ -214,7 +203,12 @@ class KhServer(object):
 
 
   def install(self):
-    ''' Install empty framework '''
+    ''' Install empty Kittyhawk framework 
+    
+        Creates the directories and files nessessary to initialize
+        and start the Kittyhawk server
+    '''
+    self.clean()
     # create db directories (if needed)
     for s in self.config.options("BaseDirectories"):
       d = self.config.get("BaseDirectories", s)
@@ -225,72 +219,98 @@ class KhServer(object):
       d = self.config.get("BaseFiles", s)
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
         touch(os.path.join(self.db_path, d))
-
-
-  def network_client(self):
-    ''' Allocate a network '''
-   # for file in os.listdir(self.data_job_path):
-   #   if fnmatch.fnmatch(file, job+":*"):
-   #     print "Error: network '"+job+"' already exists"
-   #     return None
-    # make directory
-    jid =  self.db_job_set() 
-    if os.path.exists(os.path.join(self.netpath, str(jid))) == 0:
-        os.mkdir(os.path.join(self.netpath, str(jid)))
-    return jid
+    self.init()
+    print "Initialization complete. Ready to start daemon..."
 
 
   def remove(self, job):
-    ''' Remove a network, free connected nodes '''
-    record = self.db_job_get(job, '*')
-    if record == None:
-      print "Error: no job record found"
-      exit(1)
-    jobid = record[record.find(':')+1:len(record)]
-    self.db_job_rm(job, jobid)
-    nodes = self.db_node_get('*', job, jobid)
+    ''' Remove a network, free connected nodes 
+    
+        This method will reset the network and nodes records and
+        delete the network directory. Make sure you are finished
+        with all data within the network directory (e.g, pidfiles)
+    '''
+    #record = self.db_net_get(job, '*')
+    #if record == None:
+    #  print "Error: no job record found"
+    #  exit(1)
+    #jobid = record[record.find(':')+1:len(record)]
+    nodes = self.db_node_get('*', job)
     # set nodes as free
     for node in nodes:
       nid = node[0:node.find(':')]
-      self.db_node_set(nid,
-          self.config.get('Settings','FreeOwner'),self.config.get('Settings',
-            'FreeJobID'))
+      self.db_node_set(nid, self.config.get('Settings', 'FreeJobID'))
     # remove job data directories
     datapath = os.path.join(self.db_path,
         self.config.get("BaseDirectories", "jobdata")+'/'+str(jobid))
     if os.path.exists(datapath) == 1:
       shutil.rmtree(datapath)
 
-  def remove_client(self, job):
-    ''' Remove a network, free nodes. Client validation '''
-    return "Not yet implemented"
+
+  def clean(self):
+    ''' Clean all nodes and networks '''
+    # reset node records
+    self.db_node_rm('*','*')
+    # remove all nets
+    npath = os.path.join(self.netpath)
+    if os.path.isdir(npath):
+        shutil.rmtree(npath) # delete directory tree!
+    # remove job data subdirectories 
+    datapath = os.path.join(self.db_path,
+        self.config.get("BaseDirectories", "jobdata"))
+    if os.path.isdir(datapath):
+        shutil.rmtree(datapath)
+    os.mkdir(datapath)
+
+
+  def info(self):
+    ''' Display all network information '''
+    # list each app and the number of nodes
+    for file in os.listdir(self.data_job_path):
+      job = file[0:file.find(':')]
+      jobid = file[file.find(':')+1:len(file)]
+      nodes = self.db_node_get('*',jobid)
+      print job, jobid, len(nodes)
+
 
   def restart(self):
-    ''' Restart the server'''
+    ''' Stop and resume the server 
+        
+        Previous state is kept intact (use 'clean' otherwise)
+    '''
     self.stop()
     self.start()
     return 0
 
+
   def server_config(self):
-    ''' Server config must be defined in child class '''
-    self._print("Error: no server configuration found")
+    ''' Server settings must be defined in child class '''
+    self._print("Error: child class must contain server_config() function")
     exit(1)
     return 0
 
+
   def start(self):
-    ''' Bring server online '''
-    self.init(); # reset server defaults, free all nodes
+    ''' Bring server online 
+    
+        By default, the server will resume its pervious state, presuming other
+        processes are still runningi externally. Optionally, this function
+        should check if the server had not previous initialized and do so.
+    '''
     config = self.server_config()
     
+    #TODO: install and initialize when nessessary
+
     # aquire lock on pidfile
     lock = lockfile.FileLock(config.pidfile_path)
     while not lock.i_am_locking():
       try:
-        lock.acquire(timeout=3)  # wait up to 60 seconds
+        lock.acquire(timeout=3)  # wait up to 3 seconds
       except lockfile.LockTimeout:
-        print "pidfile is locked. Try stopping the server"
+        print "Server is already running"
         exit(1)
 
+    print "Bringing server online"
     self.daemon_context.stdin = open(config.stdin_path, 'r')
     self.daemon_context.stdout = open(config.stdout_path, 'w+')
     self.daemon_context.stderr = open(config.stderr_path, 'w+', buffering=0)
@@ -300,7 +320,6 @@ class KhServer(object):
       f.seek(0)
       f.truncate()
       f.write(str(os.getpid()))
-    
     server = SimpleXMLRPCServer((config.server_ip, int(config.server_port)))
     server.register_function(self.alloc_client,   "alloc")
     server.register_function(self.console_client, "console")
@@ -311,13 +330,15 @@ class KhServer(object):
     self._print("Listening on "+config.server_ip+":"+str(config.server_port))
     server.serve_forever()
 
-  ''' Bring server offline '''
+
   def stop(self):
+    ''' Take server offline '''
     config = self.server_config()
     lock = lockfile.FileLock(config.pidfile_path)
+    print "Shutting down server..."
     while not lock.i_am_locking():
       try:
-        lock.acquire(timeout=5)  # wait up to 60 seconds
+        lock.acquire(timeout=3)  # wait up to 3 seconds
       except lockfile.LockTimeout:
         lock.break_lock()
         pid=int(next(open(config.pidfile_path)))
@@ -327,22 +348,19 @@ class KhServer(object):
         with open(config.pidfile_path, "a") as f:
           f.seek(0)
           f.truncate()
-        exit(1)
-    print "Server is not online"
+        return 0
+    print "Timeout: Server is not online"
 
 
-  # database methods ################################################
+  # database control ##########################################################
 
-  # return filename of first matching job record
-  def db_job_get(self, job, jobid):
-    f = str(job)+":"+str(jobid)
-    for file in os.listdir(self.data_job_path):
-      if fnmatch.fnmatch(file, f):
-        return file
-    return None
+  #  Network methods
 
-  # Grab next jobid and assign it to job
-  def db_job_set(self): 
+  def db_net_set(self): 
+    ''' Grab next netid, increment count 
+    
+        Always returns int
+    '''
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
     nextid=rid+1
     # increase jobid count
@@ -350,23 +368,39 @@ class KhServer(object):
       f.seek(0)
       f.truncate()
       f.write(str(nextid))
-    # setup db record
-    #rpath = self.db_path+'/'+self.config.get('BaseDirectories','job')+\
-    #  '/'+str(job)+':'+str(rid)
-    #touch(rpath)
     return rid
 
-  # remove DB record, return (expired) jobid
-  def db_job_rm(self, job, jobid):
-    f = str(job)+":"+str(jobid)
-    for file in os.listdir(self.data_job_path):
-      if fnmatch.fnmatch(file, f):
-        os.remove(self.data_job_path+"/"+file)
-    return jobid
+  def db_net_rm(self, net):
+    ''' Remove network directory, return (expired) jobid 
+    
+        Only run this once you are done with all the files within!
+    '''
+    path = self.db_net_get(net)
+    if not (path is None):
+        shutil.rmtree(path) # delete directory tree!
+        return net
+    else:
+        return None
 
-  # return matching node record(s)
-  def db_node_get(self, node, job, conid, count=None):
-    f = str(node)+":"+str(job)+":"+str(conid)
+  def db_net_get(self, net):
+    ''' Verify network, return network path 
+    
+        None is return for missing network
+    '''
+    ndir = os.path.join(self.netpath, str(net))
+    if os.path.isdir(ndir):
+        return ndir
+    else:
+        return None
+
+  #  Node methods
+
+  def db_node_get(self, node, net, count=None):
+    ''' Return matching record(s) 
+    
+        Upto 'count' many
+    ''' 
+    f = str(node)+":"+str(net)
     retlist=[]
     for file in os.listdir(self.data_node_path):
       if fnmatch.fnmatch(file, f):
@@ -375,17 +409,18 @@ class KhServer(object):
           break
     return retlist
 
-  # delete matching node record(s)
-  def db_node_rm(self, node, job, conid):
-    f = str(node)+":"+str(job)+":"+str(conid)
+  def db_node_rm(self, node, net):
+    ''' delete matching node record(s) 
+    '''
+    f = str(node)+":"+str(net)
     for file in os.listdir(self.data_node_path):
         if fnmatch.fnmatch(file, f):
             os.remove(self.data_node_path+"/"+file)
 
-  # create new node record
-  def db_node_set(self, node, job, conid):
-    self.db_node_rm(str(node), "*", "*")
-    fnew = self.data_node_path+ "/"+str(node)+":"+str(job)+":"+str(conid)
+  def db_node_set(self, node, net):
+    ''' new node record '''
+    self.db_node_rm(str(node), "*")
+    fnew = self.data_node_path+ "/"+str(node)+":"+str(net)
     touch(fnew)
   
   # utility methods #############################################

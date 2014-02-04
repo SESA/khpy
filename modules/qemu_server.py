@@ -1,3 +1,4 @@
+import kh_server
 from kh_server import *
 import os
 import stat
@@ -13,7 +14,7 @@ class QemuServer(KhServer):
     self.data_net_path = os.path.join(self.db_path,
         self.config.get("BaseDirectories","job"))
 
-  # cli parser methods   ###############################################
+  # cli parser methods   #######################################
 
   def parse_install(self, parser):
     parser = KhServer.parse_install(self, parser)
@@ -42,33 +43,42 @@ class QemuServer(KhServer):
 
   def alloc_client(self, nid, count, img, config, option={}):
     nodes = KhServer.alloc_client(self, nid, count)
-    #jobid = None
-    ## grab jobid from cookie?
-    #for file in os.listdir(self.data_net_path):
-    #  if fnmatch.fnmatch(file, nid+":*"):
-    #    jobid = str(file).split(':')[1];
     jobdir = self.netpath+'/'+str(nid)
-
+    ret = ""
+    # allocate nodes
+    print "Allocating nodes: ",nodes
     for node in nodes:
+      ret += str(node)+"\n"
       nodedir = jobdir+'/'+str(node)
       ''' construct qemu line '''
       cmd = self.config.get('Qemu', 'cmd')
+
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         cmd += " -gdb tcp::"+option['g']
         option['g'] = str(int(option['g'])+1)
+
+      # networking
+      mac = self.generate_mac(node)
+      ret += mac+"\n"
+      vdesock = self.vdesock_path(nid)
+      cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
+          -net vde,vlan=1,sock="+vdesock
+
       ## internal network
       #if option.has_key('i') and option['i'] == True:
-      #  mac = self.generate_mac(node)
       #  cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
       #    -net bridge,vlan=2,br=brI"
+
       ## external network
       #if option.has_key('x') and option['x'] == True:
       #  mac = self.generate_mac(node)
       #  cmd +=" -net nic,vlan=2,model=virtio,macaddr="+mac+" \
       #    -net bridge,vlan=2,br=brX"
+       
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
+      ret += nodedir+"/serial.log\n"
       # vnc socket
       cmd += " -vnc unix:"+nodedir+"/vnc"
       # ram
@@ -76,15 +86,14 @@ class QemuServer(KhServer):
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # kernel 
-      cmd += " "+img+" "
-      #cmd += " -kernel "+str(img)
+      cmd += " -kernel "+str(img)
       # config
-      #cmd += " -initrd "+str(config)
+      cmd += " -initrd "+str(config)
       # error log (end of command)
       cmd += " > "+nodedir+"/error.log 2>&1 &" 
       print cmd
       subprocess.call(cmd, shell=True)
-      return "Node allocation sucessful" 
+    return ret
 
   def network_client(self):
     nid = KhServer.network_client(self)
@@ -102,7 +111,7 @@ class QemuServer(KhServer):
 
     # generate tap
     tapfile = os.path.join(netpath, 'tap')
-    touch(self,tapfile)
+    kh_server.touch(tapfile)
     tap = subprocess.check_output(tapcmd, shell=True).rstrip()
     if os.path.isfile(tapfile) == 1:
       with open(tapfile, "a") as f:
@@ -125,12 +134,19 @@ class QemuServer(KhServer):
 
 
   def remove(self, net):
-    netinfo = self.db_job_get(net, '*')
-    if(netinfo == None):
-      print "Error: network ",net," not found."
+    #netinfo = self.db_job_get(net, '*')
+    #if(netinfo == None):
+    #  print "Error: network ",net," not found."
+    #  exit(1)
+    #netid = netinfo[netinfo.find(':')+1:len(netinfo)]
+
+    # verify directoy exists, i.e., network is legit
+    ndir = os.path.join(self.netpath, str(net))
+    if not os.path.isdir(ndir):
+      self._print("Error: network "+str(net)+" not found")
       exit(1)
-    netid = netinfo[netinfo.find(':')+1:len(netinfo)]
-    nodes = self.db_node_get('*', net, netid)
+
+    nodes = self.db_node_get('*', netid)
     # remove processes
     for node in nodes:
       nid = node[0:node.find(':')]
@@ -142,8 +158,11 @@ class QemuServer(KhServer):
         try:
           os.kill(pid,15) 
         except OSError:
-          print "Warning: process",pid,"not found."
+          self._print("Warning: process "+pid+" not found.")
           pass
+    # remove dnsmasq
+    # remove vde_switch
+    # remove tap
     # remove record
     KhServer.remove(self, net)
 
@@ -165,9 +184,13 @@ class QemuServer(KhServer):
     return macprefix+':'+nodeid[mark+1:mark+3]
   
   def inode(self):
-    path = (os.path.abspath(__file__))
+    path = '/opt/khpy/kh'
     if path:
+     print path
      return '0x%016x' % int(os.stat(path)[stat.ST_INO])
     else:
       return None
+  
+  def vdesock_path(self,nid):
+    return os.path.join(os.path.join(self.netpath, str(nid)), 'vde_sock')
 
