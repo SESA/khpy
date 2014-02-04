@@ -11,7 +11,8 @@ class KhClient():
   def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
     self.config.read(configsrc)
-    self.proxy = xmlrpclib.ServerProxy("http://localhost:8000/")
+    self.address = "http://"+self.config.get('Qemu','server_ip')+":"+self.config.get('Qemu', 'server_port')
+    self.proxy = xmlrpclib.ServerProxy(self.address)
 
   # Defailt commmand parsers ################################################
 
@@ -80,8 +81,12 @@ class KhClient():
 
   # action methods ####################################################
 
-  def alloc(self, job, img, config):
-    print self.proxy.alloc(job, 1, img, config)
+  def alloc(self, job, img, config, option={}):
+    if option.has_key('n') and int(option['n']) > 0:
+        count = int(option['n'])
+    else:
+        count = 1
+    print self.proxy.alloc(job, count, img, config)
 
   def clean(self):
     print self.proxy.clean()
