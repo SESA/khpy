@@ -91,6 +91,7 @@ class QemuServer(KhServer):
       cmd += " -initrd "+str(config)
       # error log (end of command)
       cmd += " > "+nodedir+"/error.log 2>&1 &" 
+      ret += nodedir+"/error.log\n"
       print cmd
       subprocess.call(cmd, shell=True)
     return ret
