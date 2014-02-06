@@ -53,11 +53,6 @@ class QemuServer(KhServer):
       ''' construct qemu line '''
       cmd = self.config.get('Qemu', 'cmd')
 
-      # gdb debug server
-      if option.has_key('g') and option['g'] > 0:
-        cmd += " -gdb tcp::"+option['g']
-        option['g'] = str(int(option['g'])+1)
-
       # networking
       mac = self.generate_mac(node)
       ret += mac+"\n"
@@ -65,11 +60,16 @@ class QemuServer(KhServer):
       cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
           -net vde,vlan=1,sock="+vdesock
 
+      # gdb debug server
+      if option.has_key('g') and option['g'] > 0:
+        gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
+        cmd += " -gdb tcp::"+str(gdb_port) 
+        ret += "gdb: "+str(gdb_port)+"\n"
+
       ## internal network
       #if option.has_key('i') and option['i'] == True:
       #  cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
       #    -net bridge,vlan=2,br=brI"
-
       ## external network
       #if option.has_key('x') and option['x'] == True:
       #  mac = self.generate_mac(node)

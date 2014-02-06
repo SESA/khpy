@@ -50,8 +50,8 @@ class KhClient():
         type=str, help='path to application')
     parser.add_argument('config', action=KH_store_required,
         type=str, help='path to configuration')
-    parser.add_argument('-n', action=KH_store_optional,
-        help='Number of nodes')
+    parser.add_argument('-n', action=KH_store_optional, type=int,
+    metavar='num', help='Number of nodes')
     return parser
 
   def parse_clean(self, parser):
@@ -86,7 +86,7 @@ class KhClient():
         count = int(option['n'])
     else:
         count = 1
-    print self.proxy.alloc(job, count, img, config)
+    print self.proxy.alloc(job, count, img, config, option)
 
   def clean(self):
     print self.proxy.clean()
