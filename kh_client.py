@@ -4,6 +4,7 @@ import getpass
 import random
 import string
 import time
+import os
 import xmlrpclib
 
 # Kittyhawk root server object
@@ -86,7 +87,17 @@ class KhClient():
         count = int(option['n'])
     else:
         count = 1
-    print self.proxy.alloc(job, count, img, config, option)
+    # verify file input
+    if not os.path.exists(img):
+      print "Error: file "+img+" not found"
+      exit(1)
+    if not os.path.exists(config):
+      print "Error: file "+config+" not found"
+      exit(1)
+    # absolute paths
+    aimg = os.path.abspath(img)
+    aconfig = os.path.abspath(config)
+    print self.proxy.alloc(job, count, aimg, aconfig, option)
 
   def clean(self):
     print self.proxy.clean()
