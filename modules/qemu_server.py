@@ -2,6 +2,7 @@ import kh_server
 from kh_server import *
 import os
 import stat
+import time
 
 class QemuServer(KhServer):
   def __init__(self, configsrc):
@@ -42,6 +43,11 @@ class QemuServer(KhServer):
       self.config.get('Qemu', 'stderr_path'))
 
   def alloc_client(self, nid, count, img, config, option={}):
+
+    # verify  network is legit
+    if not self.network_is_valid(nid):
+      return "Error: network "+str(nid)+" is not valid"
+
     nodes = KhServer.alloc_client(self, nid, count)
     jobdir = self.netpath+'/'+str(nid)
     ret = ""
@@ -52,30 +58,17 @@ class QemuServer(KhServer):
       nodedir = jobdir+'/'+str(node)
       ''' construct qemu line '''
       cmd = self.config.get('Qemu', 'cmd')
-
       # networking
       mac = self.generate_mac(node)
       ret += mac+"\n"
       vdesock = self.vdesock_path(nid)
       cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
           -net vde,vlan=1,sock="+vdesock
-
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
         cmd += " -gdb tcp::"+str(gdb_port) 
         ret += "gdb: "+str(gdb_port)+"\n"
-
-      ## internal network
-      #if option.has_key('i') and option['i'] == True:
-      #  cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
-      #    -net bridge,vlan=2,br=brI"
-      ## external network
-      #if option.has_key('x') and option['x'] == True:
-      #  mac = self.generate_mac(node)
-      #  cmd +=" -net nic,vlan=2,model=virtio,macaddr="+mac+" \
-      #    -net bridge,vlan=2,br=brX"
-       
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
       ret += nodedir+"/serial.log\n"
@@ -93,6 +86,8 @@ class QemuServer(KhServer):
       cmd += " > "+nodedir+"/error.log 2>&1 &" 
       ret += nodedir+"/error.log\n"
       print cmd
+      # touch serial file to set the correct permissions
+      touch(nodedir+'/serial.log')
       subprocess.call(cmd, shell=True)
     return ret
 
@@ -133,39 +128,62 @@ class QemuServer(KhServer):
     subprocess.check_output(vdecmd, shell=True)
     return str(nid)+'\n'+str(hostip)
 
+  def _kill(self, path):
+    if os.path.exists(path):
+      # read pid, remove process
+      with open(path, 'r') as f:
+        pid = int(f.readline())
+        f.close()
+      try:
+        os.kill(pid,15) 
+      except OSError:
+        self._print("Warning: process "+str(pid)+" not found")
+        pass
+    else:
+      self._print("Warning: file "+str(path)+" not found")
 
-  def remove(self, net):
-    #netinfo = self.db_job_get(net, '*')
-    #if(netinfo == None):
-    #  print "Error: network ",net," not found."
-    #  exit(1)
-    #netid = netinfo[netinfo.find(':')+1:len(netinfo)]
+  def remove_node(self, node):
+    # verify  node is legit
+    if not self.node_is_valid(node):
+      return "Error: node "+str(node)+" is not valid"
 
-    # verify directoy exists, i.e., network is legit
-    ndir = os.path.join(self.netpath, str(net))
-    if not os.path.isdir(ndir):
-      self._print("Error: network "+str(net)+" not found")
-      exit(1)
+    nodes = self.db_node_get(node, '*')
+    noderec = nodes[0]
+    if noderec is not None:
+      netid = noderec[noderec.find(':')+1:len(noderec)]
+    else:
+      return "Error: no network for node #"+str(node)
 
+    netdir = os.path.join(self.netpath, str(netid))
+    self._kill(os.path.join(os.path.join(os.path.join(netdir,
+      str(node)),'pid')))
+    return KhServer.remove_node(self, node, netid)
+    
+  def remove_network(self, netid):
+    # verify  network is legit
+    if not self.network_is_valid(netid):
+      return "Error: network "+str(netid)+" is not valid"
+    # get node records
+    netdir = os.path.join(self.netpath, str(netid))
     nodes = self.db_node_get('*', netid)
-    # remove processes
     for node in nodes:
       nid = node[0:node.find(':')]
-      path = self.netpath+'/'+str(netid)+'/'+str(nid)+'/pid'
-      if os.path.exists(path):
-        with open(path, 'r') as f:
-          pid = int(f.readline())
-          f.close()
-        try:
-          os.kill(pid,15) 
-        except OSError:
-          self._print("Warning: process "+pid+" not found.")
-          pass
+      self._kill(os.path.join(os.path.join(os.path.join(netdir,
+        str(nid)),'pid')))
     # remove dnsmasq
+    self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
     # remove vde_switch
+    self._kill(os.path.join(os.path.join(netdir, 'vde_pid')))
     # remove tap
-    # remove record
-    KhServer.remove(self, net)
+    tappath=os.path.join(netdir, 'tap')
+    if os.path.exists(tappath):
+      # read pid, remove process
+      with open(tappath, 'r') as f:
+        tap = f.readline()
+        f.close()
+        subprocess.check_output('tunctl -d'+tap, shell=True)
+    # remove records
+    return KhServer.remove_network(self, netid)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address

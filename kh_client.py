@@ -38,10 +38,15 @@ class KhClient():
     self.parse_network(subpar.add_parser('network', 
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Allocate a network"))
-    # remove
-    self.parse_remove(subpar.add_parser('remove',
+    # remove node
+    self.parse_remove_node(subpar.add_parser('rmnode',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Remove network and free allocated nodes"))
+    # remove network
+    self.parse_remove_network(subpar.add_parser('rmnet',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Remove network and free allocated nodes"))
+
 
   def parse_alloc(self, parser):
     parser.set_defaults(func=self.alloc)
@@ -73,12 +78,18 @@ class KhClient():
     parser.set_defaults(func=self.network)
     return parser
 
-  def parse_remove(self, parser):
-    # TODO: allow '*' and Net1, Net2...
-    parser.add_argument('job', action=KH_store_required,
-      help="Name of network")
-    parser.set_defaults(func=self.remove)
+  def parse_remove_network(self, parser):
+    parser.add_argument('net', action=KH_store_required,
+      help="Network ID")
+    parser.set_defaults(func=self.remove_network)
     return parser
+
+  def parse_remove_node(self, parser):
+    parser.add_argument('node', action=KH_store_required,
+      help="Node ID")
+    parser.set_defaults(func=self.remove_node)
+    return parser
+
 
   # action methods ####################################################
 
@@ -111,6 +122,9 @@ class KhClient():
   def network(self):
     print self.proxy.network()
 
-  def remove(self, job):
-    print self.proxy.network(job)
+  def remove_network(self, net):
+    print self.proxy.remove_network(net)
+
+  def remove_node(self, node):
+    print self.proxy.remove_node(node)
 

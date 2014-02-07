@@ -171,13 +171,33 @@ class KhServer(object):
     return jid
 
 
-  def remove_client(self, network):
+  def remove_node_client(self, node):
+    ''' Free a node. Client validation '''
+    ## TODO: some sort of user validation
+    return self.remove_node(node)
+
+
+  def remove_network_client(self, network):
     ''' Remove a network, free nodes. Client validation '''
     ## TODO: some sort of user validation
-    self.remove(network)
-
+    return self.remove_network(network)
 
   # Server actions ####################################################
+
+  def clean(self):
+    ''' Clean all nodes and networks '''
+    # reset node records
+    self.db_node_rm('*','*')
+    # remove all nets
+    npath = os.path.join(self.netpath)
+    if os.path.isdir(npath):
+        shutil.rmtree(npath) # delete directory tree!
+    # remove job data subdirectories 
+    datapath = os.path.join(self.db_path,
+        self.config.get("BaseDirectories", "jobdata"))
+    if os.path.isdir(datapath):
+        shutil.rmtree(datapath)
+    os.mkdir(datapath)
 
   ''' these methods are called directly, from the servers command line interface'''
 
@@ -208,7 +228,6 @@ class KhServer(object):
         Creates the directories and files nessessary to initialize
         and start the Kittyhawk server
     '''
-    self.clean()
     # create db directories (if needed)
     for s in self.config.options("BaseDirectories"):
       d = self.config.get("BaseDirectories", s)
@@ -223,44 +242,42 @@ class KhServer(object):
     print "Initialization complete. Ready to start daemon..."
 
 
-  def remove(self, job):
+  def remove_node(self, node, netid=None):
+    ''' Remove a paticular node from a network
+
+    '''
+    if netid is None:
+      nodes = self.db_node_get(node, '*')
+      noderec = nodes[0]
+      if noderec is not None:
+        netid = noderec[noderec.find(':')+1:len(noderec)]
+      else:
+        self._print("Warning: no network for node #"+str(node))
+        return 0
+    self.db_node_set(node, self.config.get('Settings', 'FreeJobID'))
+    return "Removed node "+str(node)+" from network "+str(netid) 
+
+
+  def remove_network(self, netid):
     ''' Remove a network, free connected nodes 
     
         This method will reset the network and nodes records and
         delete the network directory. Make sure you are finished
         with all data within the network directory (e.g, pidfiles)
     '''
-    #record = self.db_net_get(job, '*')
-    #if record == None:
-    #  print "Error: no job record found"
-    #  exit(1)
-    #jobid = record[record.find(':')+1:len(record)]
-    nodes = self.db_node_get('*', job)
+    nodes = self.db_node_get('*', netid)
     # set nodes as free
     for node in nodes:
       nid = node[0:node.find(':')]
       self.db_node_set(nid, self.config.get('Settings', 'FreeJobID'))
-    # remove job data directories
-    datapath = os.path.join(self.db_path,
-        self.config.get("BaseDirectories", "jobdata")+'/'+str(jobid))
+    # remove net data directories
+    datapath = os.path.join(os.path.join(self.db_path,
+        self.config.get("BaseDirectories", "jobdata")),str(netid))
     if os.path.exists(datapath) == 1:
       shutil.rmtree(datapath)
+    return "Nework "+str(netid)+" removed"
 
 
-  def clean(self):
-    ''' Clean all nodes and networks '''
-    # reset node records
-    self.db_node_rm('*','*')
-    # remove all nets
-    npath = os.path.join(self.netpath)
-    if os.path.isdir(npath):
-        shutil.rmtree(npath) # delete directory tree!
-    # remove job data subdirectories 
-    datapath = os.path.join(self.db_path,
-        self.config.get("BaseDirectories", "jobdata"))
-    if os.path.isdir(datapath):
-        shutil.rmtree(datapath)
-    os.mkdir(datapath)
 
 
   def info(self):
@@ -326,7 +343,8 @@ class KhServer(object):
     server.register_function(self.network_client, "network")
     server.register_function(self.clean_client,   "clean")
     server.register_function(self.info_client,    "info")
-    server.register_function(self.remove_client,  "remove")
+    server.register_function(self.remove_network_client,"remove_network")
+    server.register_function(self.remove_node_client,"remove_node")
     self._print("Listening on "+config.server_ip+":"+str(config.server_port))
     server.serve_forever()
 
@@ -350,6 +368,34 @@ class KhServer(object):
           f.truncate()
         return 0
     print "Timeout: Server is not online"
+
+
+  # validation  ##########################################################
+
+  def node_is_valid(self, node):
+    ''' Verify that a node is allocated
+
+        Return True/False
+    '''
+    pull = self.db_node_get(node,'*')
+    if len(pull) is 1:
+      noderec = pull[0] 
+      netid = noderec[noderec.find(':')+1:len(noderec)]
+      # verify node is assigned to a network
+      if netid is not self.config.get('Settings','FreeJobID'):
+        return True
+    return False # no valid node record
+
+
+  def network_is_valid(self, net):
+    ''' Verify that a network is active
+
+        Return True/False
+    '''
+    if self.db_net_get(net) is None:
+      return False
+    else: 
+      return True # we may want some additional validation here...
 
 
   # database control ##########################################################
