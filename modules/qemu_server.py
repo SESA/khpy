@@ -181,7 +181,7 @@ class QemuServer(KhServer):
       with open(tappath, 'r') as f:
         tap = f.readline()
         f.close()
-        subprocess.check_output('tunctl -d'+tap, shell=True)
+        print subprocess.check_output('tunctl -d '+tap, shell=True)
     # remove records
     return KhServer.remove_network(self, netid)
 
