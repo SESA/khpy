@@ -141,9 +141,12 @@ class KhServer(object):
     return gotlist
 
 
-  def clean_client(self):
+  def clean_client(self,uid):
     ''' Clean all Nodes and Networks for a particular user '''
-    return "Not yet supported"
+    nets = self.db_net_listbyuid(uid)
+    for name in nets:
+      self.remove_network(name)
+    return "Your networks and nodes have been removed"
 
 
   def console_client(self, key):
@@ -156,20 +159,22 @@ class KhServer(object):
     return "Not yet supported"
 
 
-  def network_client(self):
+  def network_client(self,uid):
     ''' Allocate a network '''
-   # for file in os.listdir(self.data_job_path):
-   #   if fnmatch.fnmatch(file, job+":*"):
-   #     print "Error: network '"+job+"' already exists"
-   #     return None
-    # make directory
     jid =  self.db_net_set() 
-    #if self.debug:
-    if os.path.exists(os.path.join(self.netpath, str(jid))) == 0:
-        os.mkdir(os.path.join(self.netpath, str(jid)))
+    net_path = os.path.join(self.netpath, str(jid))
+    net_uid_path = os.path.join(net_path, "uid")
+    if os.path.exists(net_path) == 0:
+        os.mkdir(net_path)
+        touch(net_uid_path)
+        with open(net_uid_path, "a") as f:
+          f.seek(0)
+          f.truncate()
+          f.write(str(uid))
+    else:
+      self._print("Error: network "+str(jid)+" already allocated")
     self._print("Allocating network #"+str(jid), sys.stdout)
     return jid
-
 
   def remove_node_client(self, node):
     ''' Free a node. Client validation '''
@@ -183,9 +188,18 @@ class KhServer(object):
     return self.remove_network(network)
 
   # Server actions ####################################################
+  ''' these methods should be called directly from the servers command line
+  interface, not from a client'''
 
   def clean(self):
+    self.stop()
     ''' Clean all nodes and networks '''
+    print "Removing all nodes and networks"
+
+    nets = self.db_net_list()
+    for name in nets:
+      self.remove_network(name)
+
     # reset node records
     self.db_node_rm('*','*')
     # remove all nets
@@ -199,17 +213,15 @@ class KhServer(object):
         shutil.rmtree(datapath)
     os.mkdir(datapath)
 
-  ''' these methods are called directly, from the servers command line interface'''
 
   def init(self, count=0):
     ''' Initilaize the Kittyhawk playform
-
         Reset counts to default. Reset node and network records
     '''
     if count == 0:
-      count=self.config.getint("Defaults", "instance_count")
+      count=self.config.getint("Defaults", "instance_max")
     # set record for each node 
-    for i in range(count):
+    for i in range(2,count):
       self.db_node_set(i, self.config.get('Settings','FreeJobID'))
     # set ids to default  
     for s in self.config.options("BaseFiles"):
@@ -228,6 +240,7 @@ class KhServer(object):
         Creates the directories and files nessessary to initialize
         and start the Kittyhawk server
     '''
+    self.clean()
     # create db directories (if needed)
     for s in self.config.options("BaseDirectories"):
       d = self.config.get("BaseDirectories", s)
@@ -239,7 +252,7 @@ class KhServer(object):
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
         touch(os.path.join(self.db_path, d))
     self.init()
-    print "Initialization complete. Ready to start daemon..."
+    print "Initialization complete. Ready to start "
 
 
   def remove_node(self, node, netid=None):
@@ -275,7 +288,7 @@ class KhServer(object):
         self.config.get("BaseDirectories", "jobdata")),str(netid))
     if os.path.exists(datapath) == 1:
       shutil.rmtree(datapath)
-    return "Nework "+str(netid)+" removed"
+    return "Network "+str(netid)+" removed"
 
 
 
@@ -292,7 +305,6 @@ class KhServer(object):
 
   def restart(self):
     ''' Stop and resume the server 
-        
         Previous state is kept intact (use 'clean' otherwise)
     '''
     self.stop()
@@ -316,8 +328,6 @@ class KhServer(object):
     '''
     config = self.server_config()
     
-    #TODO: install and initialize when nessessary
-
     # aquire lock on pidfile
     lock = lockfile.FileLock(config.pidfile_path)
     while not lock.i_am_locking():
@@ -327,7 +337,7 @@ class KhServer(object):
         print "Server is already running"
         exit(1)
 
-    print "Bringing server online"
+    print "Starting server..."
     self.daemon_context.stdin = open(config.stdin_path, 'r')
     self.daemon_context.stdout = open(config.stdout_path, 'w+')
     self.daemon_context.stderr = open(config.stderr_path, 'w+', buffering=0)
@@ -359,14 +369,18 @@ class KhServer(object):
         lock.acquire(timeout=3)  # wait up to 3 seconds
       except lockfile.LockTimeout:
         lock.break_lock()
-        pid=int(next(open(config.pidfile_path)))
-        self._print("Shutting down service, pid="+str(pid))
-        lock.break_lock()
-        os.kill(pid, signal.SIGKILL)
-        with open(config.pidfile_path, "a") as f:
-          f.seek(0)
-          f.truncate()
-        return 0
+        if os.path.isfile(config.pidfile_path) == True:
+          try: 
+            pid=int(next(open(config.pidfile_path)))
+            self._print("removing server process, pid="+str(pid))
+            os.kill(pid, signal.SIGKILL)
+          except StopIteration:
+            self._print("No server process found")
+          with open(config.pidfile_path, "a") as f:
+            f.seek(0)
+            f.truncate()
+          lock.break_lock()
+          return 0
     print "Timeout: Server is not online"
 
 
@@ -428,9 +442,24 @@ class KhServer(object):
     else:
         return None
 
+  def db_net_list(self):
+    ''' returns list of active networks '''
+    return [name for name in os.listdir(self.netpath)
+              if os.path.isdir(os.path.join(self.netpath, name))]
+
+  def db_net_listbyuid(self, uid):
+    nets = self.db_net_list()
+    ret = []
+    for name in nets:
+      uid_file = os.path.join(os.path.join(self.netpath, name), "uid")
+      if os.path.isfile(uid_file):
+        owner = int(next(open(uid_file)))
+        if uid == owner: 
+          ret.append(name)
+    return ret
+
   def db_net_get(self, net):
     ''' Verify network, return network path 
-    
         None is return for missing network
     '''
     ndir = os.path.join(self.netpath, str(net))

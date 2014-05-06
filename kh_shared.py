@@ -13,7 +13,11 @@ def _ensure_value(namespace, name, value):
 def process_input(clinput):
   # call into command function with arguments
   if 'optional_args' in clinput:
-    clinput['required_args'].append('optional_args')
+    try:
+      clinput['required_args'].append('optional_args')
+    except:
+      clinput['required_args'] = [] 
+      clinput['required_args'].append('optional_args')
   if 'required_args' not in clinput:
     clinput['func']()
   elif len(clinput['required_args']) == 1:

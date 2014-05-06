@@ -111,7 +111,8 @@ class KhClient():
     print self.proxy.alloc(job, count, aimg, aconfig, option)
 
   def clean(self):
-    print self.proxy.clean()
+    uid = os.geteuid()
+    print self.proxy.clean(uid)
 
   def console(self, nid):
     print self.proxy.console(nid)
@@ -119,8 +120,9 @@ class KhClient():
   def info(self):
     print self.proxy.info()
 
-  def network(self):
-    print self.proxy.network()
+  def network(self, option={}):
+    uid = os.geteuid()
+    print self.proxy.network(uid,option)
 
   def remove_network(self, net):
     print self.proxy.remove_network(net)

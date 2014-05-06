@@ -32,7 +32,7 @@ class QemuServer(KhServer):
     parser.set_defaults(func=self.info)
     return parser
 
-  # action methods #############################################
+#action methods############################################ #
 
   def server_config(self):
     return KhServerConfig(self.config.get('Qemu', 'server_ip'),
@@ -61,10 +61,18 @@ class QemuServer(KhServer):
       # networking
       mac = self.generate_mac(node)
       ret += mac+"\n"
-      vdesock = self.vdesock_path(nid)
-      cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
-          -net vde,vlan=1,sock="+vdesock
-      # gdb debug server
+      # vhost kludge
+      if option.has_key('vhost') and option['vhost'] is 1:
+        tapfile = self.tap_path(nid)
+        tap=str(next(open(tapfile)))
+        cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost=on --device virtio-net,netdev=vlan1,mac="+mac
+      else: 
+        #vde switch
+        vdesock = self.vdesock_path(nid)
+        cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
+            -net vde,vlan=1,sock="+vdesock
+     
+     # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
         cmd += " -gdb tcp::"+str(gdb_port) 
@@ -72,16 +80,22 @@ class QemuServer(KhServer):
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
       ret += nodedir+"/serial.log\n"
-      # vnc socket
-      cmd += " -vnc unix:"+nodedir+"/vnc"
       # ram
       cmd += " -m "+self.config.get('Qemu', 'ram')
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
-      # kernel 
-      cmd += " -kernel "+str(img)
-      # config
-      cmd += " -initrd "+str(config)
+      # display
+      cmd += " -display none "
+
+      # load image
+      if option.has_key('iso') and option['iso'] is 1:
+        # load ISO image (assumed full OS)
+        cmd += " "+str(img)
+      else:
+        #kernel & config
+        cmd += " -kernel "+str(img)
+        cmd += " -initrd "+str(config)
+
       # error log (end of command)
       cmd += " > "+nodedir+"/error.log 2>&1 &" 
       ret += nodedir+"/error.log\n"
@@ -91,18 +105,17 @@ class QemuServer(KhServer):
       subprocess.call(cmd, shell=True)
     return ret
 
-  def network_client(self):
-    nid = KhServer.network_client(self)
-    #if nid == None:
-    #  print "Error: network '"+name+"' already exists"
-    #  exit(1)
-    # TODO: move all this into a config file
+  def network_client(self,uid,option):
+    nid = KhServer.network_client(self,uid)
     user = "root"
     tapcmd = "tunctl -b -u "+user
     netmask = "255.255.255.0"
-    hostip = "10."+str(nid)+"."+str(nid)+".1"
-    dhcp_start = "10."+str(nid)+"."+str(nid)+".50"    
-    dhcp_end = "10."+str(nid)+"."+str(nid)+".150"    
+
+    ip_oct1 = str(int(nid / 256)+1)
+    ip_oct2 = str((nid % 256))
+    hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    dhcp_start = "10."+ip_oct1+"."+ip_oct2+".50"    
+    dhcp_end = "10."+ip_oct1+"."+ip_oct2+".150"    
     netpath = os.path.join(self.netpath, str(nid))
 
     # generate tap
@@ -117,8 +130,15 @@ class QemuServer(KhServer):
 
     # configure interface
     ipcmd = "ifconfig "+tap+" "+hostip+" netmask "+netmask+" up"
-    # enable dhcp
+
+    # vhost kludge - exit before dhcp or vdeswitch
+    if option.has_key('vhost') and option['vhost'] is 1:
+      subprocess.check_output(ipcmd, shell=True)
+      return str(nid)+'\n'+str(hostip)
+
+    # local dhcp on interface
     dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
+--log-facility="+netpath+"/dnsmasq.log \
 --dhcp-range="+dhcp_start+","+dhcp_end+",12h"
     # start virtual network
     vdecmd = "vde_switch -sock "+netpath+"/vde_sock -daemon -tap "+tap+" -M \
@@ -213,3 +233,5 @@ class QemuServer(KhServer):
   def vdesock_path(self,nid):
     return os.path.join(os.path.join(self.netpath, str(nid)), 'vde_sock')
 
+  def tap_path(self,nid):
+    return os.path.join(os.path.join(self.netpath, str(nid)), 'tap')
