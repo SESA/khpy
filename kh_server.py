@@ -194,9 +194,11 @@ class KhServer(object):
   interface, not from a client'''
 
   def clean(self):
-    self.stop()
     ''' Clean all nodes and networks '''
     print "Removing all nodes and networks"
+
+    if self.server_is_online() == True:
+      self.stop()
 
     nets = self.db_net_list()
     for name in nets:
@@ -389,8 +391,8 @@ class KhServer(object):
           with open(config.pidfile_path, "a") as f:
             f.seek(0)
             f.truncate()
-          lock.break_lock()
           return 0
+    lock.break_lock()
     print "Timeout: Server is not online"
 
 
@@ -409,6 +411,19 @@ class KhServer(object):
       if netid is not self.config.get('Settings','FreeJobID'):
         return True
     return False # no valid node record
+
+  def server_is_online(self):
+    lock = lockfile.FileLock(config.pidfile_path)
+    while not lock.i_am_locking():
+      try:
+        lock.acquire(timeout=3)  # wait up to 3 seconds
+      except lockfile.LockTimeout:
+        lock.break_lock()
+        # lock is held by running server
+        return True
+    # able to aquire lock, server is offline
+    lock.break_lock()
+    return False
 
 
   def network_is_valid(self, net):

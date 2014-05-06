@@ -55,24 +55,37 @@ class QemuServer(KhServer):
     print "Allocating nodes: ",nodes
     for node in nodes:
       ret += str(node)+"\n"
-      nodedir = jobdir+'/'+str(node)
-      ''' construct qemu line '''
+      nodedir = os.path.join(jobdir,str(node))
+      ''' construct base qemu line '''
       cmd = self.config.get('Qemu', 'cmd')
+
       # networking
       mac = self.generate_mac(node)
       ret += mac+"\n"
-      # vhost kludge
-      if option.has_key('vhost') and option['vhost'] is 1:
-        tapfile = self.tap_path(nid)
-        tap=str(next(open(tapfile)))
-        cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost=on --device virtio-net,netdev=vlan1,mac="+mac
-      else: 
-        #vde switch
-        vdesock = self.vdesock_path(nid)
-        cmd +=" -net nic,vlan=1,model=virtio,macaddr="+mac+" \
-            -net vde,vlan=1,sock="+vdesock
-     
-     # gdb debug server
+      
+      # create tap for node
+      user = "root"
+      tapcmd = "tunctl -b -u "+user
+      tapfile = os.path.join(nodedir, 'tap')
+      kh_server.touch(tapfile)
+      tap = subprocess.check_output(tapcmd, shell=True).rstrip()
+      if os.path.isfile(tapfile) == 1:
+        with open(tapfile, "a") as f:
+          f.seek(0)
+          f.truncate()
+          f.write(str(tap))
+      tapupcmd = "ip link set "+tap+" up"
+      print subprocess.check_output(tapcmd, shell=True)
+
+      # attached tap to bridge
+      br = "br"+str((int(nid) % 256))      
+      tapbrcmd = "brctl addif "+br+" "+tap
+      print subprocess.check_output(tapbrcmd, shell=True)
+
+      
+      # network command
+      cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost=on --device virtio-net,netdev=vlan1,mac="+mac
+      # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
         cmd += " -gdb tcp::"+str(gdb_port) 
@@ -86,7 +99,6 @@ class QemuServer(KhServer):
       cmd += " -pidfile "+nodedir+"/pid"
       # display
       cmd += " -display none "
-
       # load image
       if option.has_key('iso') and option['iso'] is 1:
         # load ISO image (assumed full OS)
@@ -95,7 +107,6 @@ class QemuServer(KhServer):
         #kernel & config
         cmd += " -kernel "+str(img)
         cmd += " -initrd "+str(config)
-
       # error log (end of command)
       cmd += " > "+nodedir+"/error.log 2>&1 &" 
       ret += nodedir+"/error.log\n"
@@ -118,6 +129,11 @@ class QemuServer(KhServer):
     dhcp_end = "10."+ip_oct1+"."+ip_oct2+".150"    
     netpath = os.path.join(self.netpath, str(nid))
 
+    # configure bridge
+    br = "br"+ip_oct2
+    brcmd = "brctl addbr "+br
+    subprocess.check_output(brcmd, shell=True)
+    
     # generate tap
     tapfile = os.path.join(netpath, 'tap')
     kh_server.touch(tapfile)
@@ -127,25 +143,23 @@ class QemuServer(KhServer):
         f.seek(0)
         f.truncate()
         f.write(str(tap))
+    
+    # attached tap to bridge
+    tapbrcmd = "brctl addif "+br+" "+tap
+    subprocess.check_output(tapbrcmd, shell=True)
 
     # configure interface
     ipcmd = "ifconfig "+tap+" "+hostip+" netmask "+netmask+" up"
-
-    # vhost kludge - exit before dhcp or vdeswitch
-    if option.has_key('vhost') and option['vhost'] is 1:
-      subprocess.check_output(ipcmd, shell=True)
-      return str(nid)+'\n'+str(hostip)
 
     # local dhcp on interface
     dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
 --log-facility="+netpath+"/dnsmasq.log \
 --dhcp-range="+dhcp_start+","+dhcp_end+",12h"
     # start virtual network
-    vdecmd = "vde_switch -sock "+netpath+"/vde_sock -daemon -tap "+tap+" -M \
-"+netpath+"/vde_mgmt -p "+netpath+"/vde_pid"
+    #vdecmd = "vde_switch -sock "+netpath+"/vde_sock -daemon -tap "+tap+" -M \ "+netpath+"/vde_mgmt -p "+netpath+"/vde_pid"
     subprocess.check_output(ipcmd, shell=True)
     subprocess.check_output(dnscmd, shell=True)
-    subprocess.check_output(vdecmd, shell=True)
+    #subprocess.check_output(vdecmd, shell=True)
     return str(nid)+'\n'+str(hostip)
 
   def _kill(self, path):
