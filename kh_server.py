@@ -61,15 +61,15 @@ class KhServer(object):
     # clean
     self.parse_clean(subpar.add_parser('clean',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Remove network, reset nodes"))
+      description="Remove all nodes and networks"))
     # info
     self.parse_info(subpar.add_parser('info',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="List all networks and nodes"))
+      description="List networks and nodes"))
     # install
     self.parse_install(subpar.add_parser('install',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Install Kittyhawk database "))
+      description="Install Kittyhawk database. Initialize freepool "))
     # restart
     self.parse_restart(subpar.add_parser('restart',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -77,7 +77,7 @@ class KhServer(object):
     # start
     self.parse_start(subpar.add_parser('start',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Bring server online. Initialize freepool"))
+      description="Bring server online."))
     # stop
     self.parse_stop(subpar.add_parser('stop',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -100,6 +100,8 @@ class KhServer(object):
     return parser
 
   def parse_start(self, parser):
+    parser.add_argument('-D', action=KH_store_optional_const, const=1,
+    help='No not run a deamon')
     parser.set_defaults(func=self.start)
     return parser
 
@@ -109,7 +111,7 @@ class KhServer(object):
 
 
   # Client actions ####################################################
-  #     these methods are called remotley, and should -eventually- contain
+  #     these methods are called remotely, and should -eventually- contain
   #     verification
 
   def alloc_client(self, jobid, count):
@@ -295,7 +297,7 @@ class KhServer(object):
 
   def info(self):
     ''' Display all network information '''
-    # list each app and the number of nodes
+#list each app and the number of nodes
     for file in os.listdir(self.data_job_path):
       job = file[0:file.find(':')]
       jobid = file[file.find(':')+1:len(file)]
@@ -319,7 +321,7 @@ class KhServer(object):
     return 0
 
 
-  def start(self):
+  def start(self, option={}):
     ''' Bring server online 
     
         By default, the server will resume its pervious state, presuming other
@@ -327,7 +329,12 @@ class KhServer(object):
         should check if the server had not previous initialized and do so.
     '''
     config = self.server_config()
-    
+
+    # disable daemon
+    daemon = True
+    if option.has_key('D') and option['D'] is 1:
+        daemon = False
+
     # aquire lock on pidfile
     lock = lockfile.FileLock(config.pidfile_path)
     while not lock.i_am_locking():
@@ -338,11 +345,11 @@ class KhServer(object):
         exit(1)
 
     print "Starting server..."
-    self.daemon_context.stdin = open(config.stdin_path, 'r')
-    self.daemon_context.stdout = open(config.stdout_path, 'w+')
-    self.daemon_context.stderr = open(config.stderr_path, 'w+', buffering=0)
-    self.daemon_context.open()
-    # running as daemon
+    if daemon:
+      self.daemon_context.stdin = open(config.stdin_path, 'r')
+      self.daemon_context.stdout = open(config.stdout_path, 'w+')
+      self.daemon_context.stderr = open(config.stderr_path, 'w+', buffering=0)
+      self.daemon_context.open()
     with open(config.pidfile_path, "a") as f:
       f.seek(0)
       f.truncate()
