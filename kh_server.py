@@ -380,7 +380,10 @@ class KhServer(object):
           try: 
             pid=int(next(open(config.pidfile_path)))
             self._print("removing server process, pid="+str(pid))
-            os.kill(pid, signal.SIGKILL)
+            try:
+              os.kill(pid, signal.SIGKILL)
+            except OSError:
+              self._print("No process to kill. ")
           except StopIteration:
             self._print("No server process found")
           with open(config.pidfile_path, "a") as f:
