@@ -413,6 +413,7 @@ class KhServer(object):
     return False # no valid node record
 
   def server_is_online(self):
+    config = self.server_config()
     lock = lockfile.FileLock(config.pidfile_path)
     while not lock.i_am_locking():
       try:

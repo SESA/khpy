@@ -74,17 +74,23 @@ class QemuServer(KhServer):
           f.seek(0)
           f.truncate()
           f.write(str(tap))
-      tapupcmd = "ip link set "+tap+" up"
-      print subprocess.check_output(tapcmd, shell=True)
 
       # attached tap to bridge
       br = "br"+str((int(nid) % 256))      
       tapbrcmd = "brctl addif "+br+" "+tap
       print subprocess.check_output(tapbrcmd, shell=True)
 
+      # bring interface up
+      tapupcmd = "ip link set "+tap+" up"
+      print subprocess.check_output(tapupcmd, shell=True)
       
+      # vhost toggle
+      vhost="on"
+      if option.has_key('novhost') and option['novhost'] > 0:
+          vhost="off"
+
       # network command
-      cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost=on --device virtio-net,netdev=vlan1,mac="+mac
+      cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost="+vhost+" --device virtio-net,netdev=vlan1,mac="+mac
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
@@ -121,7 +127,6 @@ class QemuServer(KhServer):
     user = "root"
     tapcmd = "tunctl -b -u "+user
     netmask = "255.255.255.0"
-
     ip_oct1 = str(int(nid / 256)+1)
     ip_oct2 = str((nid % 256))
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
@@ -134,32 +139,14 @@ class QemuServer(KhServer):
     brcmd = "brctl addbr "+br
     subprocess.check_output(brcmd, shell=True)
     
-    # generate tap
-    tapfile = os.path.join(netpath, 'tap')
-    kh_server.touch(tapfile)
-    tap = subprocess.check_output(tapcmd, shell=True).rstrip()
-    if os.path.isfile(tapfile) == 1:
-      with open(tapfile, "a") as f:
-        f.seek(0)
-        f.truncate()
-        f.write(str(tap))
-    
-    # attached tap to bridge
-    tapbrcmd = "brctl addif "+br+" "+tap
-    subprocess.check_output(tapbrcmd, shell=True)
+    #bring bridge up
+    brcmdup = "ifconfig "+br+" "+hostip+" netmask "+netmask+" up"
+    subprocess.check_output(brcmdup, shell=True)
 
-    # configure interface
-    ipcmd = "ifconfig "+tap+" "+hostip+" netmask "+netmask+" up"
-
-    # local dhcp on interface
+    # dhcp on bridge 
     dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
---log-facility="+netpath+"/dnsmasq.log \
---dhcp-range="+dhcp_start+","+dhcp_end+",12h"
-    # start virtual network
-    #vdecmd = "vde_switch -sock "+netpath+"/vde_sock -daemon -tap "+tap+" -M \ "+netpath+"/vde_mgmt -p "+netpath+"/vde_pid"
-    subprocess.check_output(ipcmd, shell=True)
+--log-facility="+netpath+"/dnsmasq.log --dhcp-range="+dhcp_start+","+dhcp_end+",12h"
     subprocess.check_output(dnscmd, shell=True)
-    #subprocess.check_output(vdecmd, shell=True)
     return str(nid)+'\n'+str(hostip)
 
   def _kill(self, path):
@@ -189,8 +176,16 @@ class QemuServer(KhServer):
       return "Error: no network for node #"+str(node)
 
     netdir = os.path.join(self.netpath, str(netid))
-    self._kill(os.path.join(os.path.join(os.path.join(netdir,
-      str(node)),'pid')))
+    nodedir = os.path.join(netdir, str(node))
+    self._kill(os.path.join(nodedir,'pid'))
+    # remove tap
+    tappath=os.path.join(nodedir, 'tap')
+    if os.path.exists(tappath):
+      # read pid, remove process
+      with open(tappath, 'r') as f:
+        tap = f.readline()
+        f.close()
+        print subprocess.check_output('tunctl -d '+tap, shell=True)
     return KhServer.remove_node(self, node, netid)
     
   def remove_network(self, netid):
@@ -202,20 +197,15 @@ class QemuServer(KhServer):
     nodes = self.db_node_get('*', netid)
     for node in nodes:
       nid = node[0:node.find(':')]
-      self._kill(os.path.join(os.path.join(os.path.join(netdir,
-        str(nid)),'pid')))
+      self.remove_node(nid)
+      #nodedir = os.path.join(netdir, str(nid))
+      #self._kill(os.path.join(nodedir,'pid'))
     # remove dnsmasq
     self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
-    # remove vde_switch
-    self._kill(os.path.join(os.path.join(netdir, 'vde_pid')))
-    # remove tap
-    tappath=os.path.join(netdir, 'tap')
-    if os.path.exists(tappath):
-      # read pid, remove process
-      with open(tappath, 'r') as f:
-        tap = f.readline()
-        f.close()
-        print subprocess.check_output('tunctl -d '+tap, shell=True)
+    # remove bridge 
+    br = "br"+str((int(netid) % 256))      
+    print subprocess.check_output('ifconfig '+br+' down', shell=True)
+    print subprocess.check_output('brctl delbr '+br, shell=True)
     # remove records
     return KhServer.remove_network(self, netid)
 
