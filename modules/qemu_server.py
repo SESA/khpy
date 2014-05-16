@@ -167,17 +167,16 @@ class QemuServer(KhServer):
     # verify  node is legit
     if not self.node_is_valid(node):
       return "Error: node "+str(node)+" is not valid"
-
     nodes = self.db_node_get(node, '*')
     noderec = nodes[0]
     if noderec is not None:
       netid = noderec[noderec.find(':')+1:len(noderec)]
     else:
       return "Error: no network for node #"+str(node)
-
     netdir = os.path.join(self.netpath, str(netid))
     nodedir = os.path.join(netdir, str(node))
     self._kill(os.path.join(nodedir,'pid'))
+    time.sleep(1)
     # remove tap
     tappath=os.path.join(nodedir, 'tap')
     if os.path.exists(tappath):
@@ -185,7 +184,7 @@ class QemuServer(KhServer):
       with open(tappath, 'r') as f:
         tap = f.readline()
         f.close()
-        print subprocess.check_output('tunctl -d '+tap, shell=True)
+        subprocess.check_output('tunctl -d '+tap, shell=True)
     return KhServer.remove_node(self, node, netid)
     
   def remove_network(self, netid):
@@ -198,8 +197,6 @@ class QemuServer(KhServer):
     for node in nodes:
       nid = node[0:node.find(':')]
       self.remove_node(nid)
-      #nodedir = os.path.join(netdir, str(nid))
-      #self._kill(os.path.join(nodedir,'pid'))
     # remove dnsmasq
     self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
     # remove bridge 
