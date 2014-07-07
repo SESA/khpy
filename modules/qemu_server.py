@@ -69,6 +69,7 @@ class QemuServer(KhServer):
       tapfile = os.path.join(nodedir, 'tap')
       kh_server.touch(tapfile)
       tap = subprocess.check_output(tapcmd, shell=True).rstrip()
+      ret += "tap: "+tap+"\n"
       if os.path.isfile(tapfile) == 1:
         with open(tapfile, "a") as f:
           f.seek(0)
