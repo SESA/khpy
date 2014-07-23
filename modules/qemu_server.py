@@ -94,18 +94,23 @@ class QemuServer(KhServer):
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost="+vhost+" --device virtio-net,netdev=vlan1,mac="+mac
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
-        gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
+        gdb_port = int(self.config.get('qemu', 'gdb_baseport')) + int(node)
         cmd += " -gdb tcp::"+str(gdb_port) 
         ret += "gdb: "+str(gdb_port)+"\n"
+
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
       ret += nodedir+"/serial.log\n"
+
       # ram
       cmd += " -m "+self.config.get('Qemu', 'ram')
+
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
+
       # display
       cmd += " -display none "
+
       # load image
       if option.has_key('iso') and option['iso'] is 1:
         # load ISO image (assumed full OS)
@@ -114,6 +119,11 @@ class QemuServer(KhServer):
         #kernel & config
         cmd += " -kernel "+str(img)
         cmd += " -initrd "+str(config)
+      
+      # additional qemu commands
+      if option.has_key('cmd') and len(option['cmd']) > 0:
+        cmd += " "+option['cmd']+" " 
+
       # error log (end of command)
       cmd += " > "+nodedir+"/error.log 2>&1 &" 
       ret += nodedir+"/error.log\n"
