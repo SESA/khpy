@@ -35,12 +35,31 @@ class QemuServer(KhServer):
 #action methods############################################ #
 
   def server_config(self):
+    self.perflog = self.config.get('Qemu', 'perflog_path');
+    touch(self.perflog)
     return KhServerConfig(self.config.get('Qemu', 'server_ip'),
       self.config.get('Qemu', 'server_port'),
       self.config.get('Qemu', 'pidfile_path'),
       self.config.get('Qemu', 'stdin_path'),
       self.config.get('Qemu', 'stdout_path'),
       self.config.get('Qemu', 'stderr_path'))
+
+  #def perf_client(self, node):
+  #  # verify  node is legit
+  #  if not self.node_is_valid(node):
+  #    return "Error: node "+str(node)+" is not valid"
+  #  nodes = self.db_node_get(node, '*')
+  #  noderec = nodes[0]
+  #  if noderec is not None:
+  #    netid = noderec[noderec.find(':')+1:len(noderec)]
+  #  else:
+  #    return "Error: no network for node #"+str(node)
+  #  netdir = os.path.join(self.netpath, str(netid))
+  #  nodedir = os.path.join(netdir, str(node))
+  #  with open (nodedir+"perf_log", "r") as f:
+  #        ret=f.read()
+  #  return ret 
+
 
   def alloc_client(self, nid, count, img, config, option={}):
 
@@ -92,6 +111,14 @@ class QemuServer(KhServer):
 
       # network command
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost="+vhost+" --device virtio-net,netdev=vlan1,mac="+mac
+      # kvm perf
+      if option.has_key('perf') and option['perf'] > 0:
+        mon_cmd = "echo 'c' | socat - UNIX-CONNECT:"+nodedir+"/mon_pipe > /dev/null"
+        cmd += " --chardev socket,path="+nodedir+"/mon_pipe,nowait,id=mon,server -mon chardev=mon -S "
+        # create pipe 
+        pipe_cmd = "mkfifo "+nodedir+"/mon_pipe"
+        subprocess.call(pipe_cmd, shell=True)
+
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('qemu', 'gdb_baseport')) + int(node)
@@ -130,7 +157,24 @@ class QemuServer(KhServer):
       print cmd
       # touch serial file to set the correct permissions
       touch(nodedir+'/serial.log')
+      
+      # run command
       subprocess.call(cmd, shell=True)
+
+      # if perf: wait for node to die, return results
+      if option.has_key('perf') and option['perf'] > 0:
+        # helper file 
+        perf_helper = self.config.get('Qemu', 'perf_helper')
+        time.sleep(1)
+        with open(nodedir+"/pid", 'r') as f:
+          pid = str(int(f.readline()))
+          f.close()
+        perf_cmd = "perf kvm --guest stat -o "+self.perflog+" --append -p "+pid+" "+perf_helper+" "+pid+" & "
+        # enable vm
+        subprocess.call(mon_cmd, shell=True)
+        # start perf
+        subprocess.call(perf_cmd, shell=True)
+        print "perf started  on "+pid
     return ret
 
   def network_client(self,uid,option):
@@ -212,8 +256,14 @@ class QemuServer(KhServer):
     self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
     # remove bridge 
     br = "br"+str((int(netid) % 256))      
-    print subprocess.check_output('ifconfig '+br+' down', shell=True)
-    print subprocess.check_output('brctl delbr '+br, shell=True)
+    try:
+      print subprocess.check_output('ifconfig '+br+' down', shell=True)
+    except subprocess.CalledProcessError:
+      pass
+    try:
+      print subprocess.check_output('brctl delbr '+br, shell=True)
+    except subprocess.CalledProcessError:
+      pass
     # remove records
     return KhServer.remove_network(self, netid)
 
@@ -235,7 +285,7 @@ class QemuServer(KhServer):
     return macprefix+':'+nodeid[mark+1:mark+3]
   
   def inode(self):
-    path = '/opt/khpy/kh'
+    path = '/dev/random'
     if path:
      print path
      return '0x%016x' % int(os.stat(path)[stat.ST_INO])
