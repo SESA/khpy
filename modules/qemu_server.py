@@ -44,23 +44,6 @@ class QemuServer(KhServer):
       self.config.get('Qemu', 'stdout_path'),
       self.config.get('Qemu', 'stderr_path'))
 
-  #def perf_client(self, node):
-  #  # verify  node is legit
-  #  if not self.node_is_valid(node):
-  #    return "Error: node "+str(node)+" is not valid"
-  #  nodes = self.db_node_get(node, '*')
-  #  noderec = nodes[0]
-  #  if noderec is not None:
-  #    netid = noderec[noderec.find(':')+1:len(noderec)]
-  #  else:
-  #    return "Error: no network for node #"+str(node)
-  #  netdir = os.path.join(self.netpath, str(netid))
-  #  nodedir = os.path.join(netdir, str(node))
-  #  with open (nodedir+"perf_log", "r") as f:
-  #        ret=f.read()
-  #  return ret 
-
-
   def alloc_client(self, nid, count, img, config, option={}):
 
     # verify  network is legit
@@ -121,9 +104,10 @@ class QemuServer(KhServer):
 
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
-        gdb_port = int(self.config.get('qemu', 'gdb_baseport')) + int(node)
-        cmd += " -gdb tcp::"+str(gdb_port) 
-        ret += "gdb: "+str(gdb_port)+"\n"
+        gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
+        cmd += " -S -gdb tcp::"+str(gdb_port) 
+        ret += "gdb: "+str(gdb_port)+" - VM is stalled until GDB connection.\n"
+
 
       # serial log
       cmd += " -serial file:"+nodedir+"/serial.log"
