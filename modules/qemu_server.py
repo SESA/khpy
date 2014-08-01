@@ -99,7 +99,7 @@ class QemuServer(KhServer):
         ret += "gdb: "+str(gdb_port)+" - VM is stalled until GDB connection.\n"
       # status fifo
       if option.has_key('s') and option['s'] > 0:
-          finish_cmd = "mkfifo "+nodedir+"/final"
+          finish_cmd = "mkfifo "+nodedir+"/finish"
           subprocess.call(finish_cmd, shell=True)
       ## serial log
       cmd += " -serial stdio"
