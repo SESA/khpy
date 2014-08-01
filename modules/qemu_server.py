@@ -35,8 +35,6 @@ class QemuServer(KhServer):
 #action methods############################################ #
 
   def server_config(self):
-    self.perflog = self.config.get('Qemu', 'perflog_path');
-    touch(self.perflog)
     return KhServerConfig(self.config.get('Qemu', 'server_ip'),
       self.config.get('Qemu', 'server_port'),
       self.config.get('Qemu', 'pidfile_path'),
@@ -132,9 +130,10 @@ class QemuServer(KhServer):
       # if perf
       if option.has_key('perf') and option['perf'] > 0:
         perf_events = self.config.get('Qemu','perf_events')
-        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+self.perflog+" --append -e "+perf_events+" "
+        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf --append -e "+perf_events+" "
         perf_cmd = "("+perf_cmd+" ("+cmd+"))&"
         subprocess.call(perf_cmd, shell=True)
+        ret += nodedir+"/perf\n"
       else:
         cmd = "("+cmd+")&"
         print subprocess.call(cmd, shell=True, executable="/bin/bash")
