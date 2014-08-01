@@ -82,46 +82,33 @@ class QemuServer(KhServer):
       br = "br"+str((int(nid) % 256))      
       tapbrcmd = "brctl addif "+br+" "+tap
       print subprocess.check_output(tapbrcmd, shell=True)
-
       # bring interface up
       tapupcmd = "ip link set "+tap+" up"
       print subprocess.check_output(tapupcmd, shell=True)
-      
       # vhost toggle
       vhost="on"
       if option.has_key('novhost') and option['novhost'] > 0:
           vhost="off"
-
       # network command
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost="+vhost+" --device virtio-net,netdev=vlan1,mac="+mac
-      # kvm perf
-      if option.has_key('perf') and option['perf'] > 0:
-        mon_cmd = "echo 'c' | socat - UNIX-CONNECT:"+nodedir+"/mon_pipe > /dev/null"
-        cmd += " --chardev socket,path="+nodedir+"/mon_pipe,nowait,id=mon,server -mon chardev=mon -S "
-        # create pipe 
-        pipe_cmd = "mkfifo "+nodedir+"/mon_pipe"
-        subprocess.call(pipe_cmd, shell=True)
 
       # gdb debug server
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
-        cmd += " -S -gdb tcp::"+str(gdb_port) 
+        cmd += " -gdb tcp::"+str(gdb_port) 
         ret += "gdb: "+str(gdb_port)+" - VM is stalled until GDB connection.\n"
-
-
-      # serial log
-      cmd += " -serial file:"+nodedir+"/serial.log"
-      ret += nodedir+"/serial.log\n"
-
+      # status fifo
+      if option.has_key('s') and option['s'] > 0:
+          finish_cmd = "mkfifo "+nodedir+"/final"
+          subprocess.call(finish_cmd, shell=True)
+      ## serial log
+      cmd += " -serial stdio"
       # ram
       cmd += " -m "+self.config.get('Qemu', 'ram')
-
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
-
       # display
       cmd += " -display none "
-
       # load image
       if option.has_key('iso') and option['iso'] is 1:
         # load ISO image (assumed full OS)
@@ -130,35 +117,28 @@ class QemuServer(KhServer):
         #kernel & config
         cmd += " -kernel "+str(img)
         cmd += " -initrd "+str(config)
-      
       # additional qemu commands
       if option.has_key('cmd') and len(option['cmd']) > 0:
         cmd += " "+option['cmd']+" " 
-
-      # error log (end of command)
-      cmd += " > "+nodedir+"/error.log 2>&1 &" 
-      ret += nodedir+"/error.log\n"
-      print cmd
-      # touch serial file to set the correct permissions
-      touch(nodedir+'/serial.log')
-      
-      # run command
-      subprocess.call(cmd, shell=True)
-
-      # if perf: wait for node to die, return results
+      # stdout 
+      cmd += " >"+nodedir+"/stdout" 
+      ret += nodedir+"/stdout\n"
+      # stderr 
+      cmd += " 2>"+nodedir+"/stderr" 
+      ret += nodedir+"/stderr\n"
+      # finish
+      cmd += "; date >"+nodedir+"/finish;" 
+      ret += nodedir+"/finish\n"
+      # if perf
       if option.has_key('perf') and option['perf'] > 0:
-        # helper file 
-        perf_helper = self.config.get('Qemu', 'perf_helper')
-        time.sleep(1)
-        with open(nodedir+"/pid", 'r') as f:
-          pid = str(int(f.readline()))
-          f.close()
-        perf_cmd = "perf kvm --guest stat -o "+self.perflog+" --append -p "+pid+" "+perf_helper+" "+pid+" & "
-        # enable vm
-        subprocess.call(mon_cmd, shell=True)
-        # start perf
+        perf_events = self.config.get('Qemu','perf_events')
+        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+self.perflog+" --append -e "+perf_events+" "
+        perf_cmd = "("+perf_cmd+" ("+cmd+"))&"
         subprocess.call(perf_cmd, shell=True)
-        print "perf started  on "+pid
+      else:
+        cmd = "("+cmd+")&"
+        print subprocess.call(cmd, shell=True, executable="/bin/bash")
+        
     return ret
 
   def network_client(self,uid,option):
