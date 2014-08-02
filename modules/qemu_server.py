@@ -131,13 +131,16 @@ class QemuServer(KhServer):
       if option.has_key('perf') and option['perf'] > 0:
         perf_events = self.config.get('Qemu','perf_events')
         perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf --append -e "+perf_events+" "
-        perf_cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
-        subprocess.call(perf_cmd, shell=True)
+        cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
         ret += nodedir+"/perf\n"
       else:
         cmd = "("+cmd+")&"
-        print subprocess.call(cmd, shell=True, executable="/bin/bash")
-        
+      # cmd file
+      with open(nodedir+"/cmd", 'a') as f:
+        f.write(cmd);
+      ret += nodedir+"/cmd"
+      subprocess.call(cmd, shell=True, executable='/bin/bash')
+    # end of per-node for-loop
     return ret
 
   def network_client(self,uid,option):
