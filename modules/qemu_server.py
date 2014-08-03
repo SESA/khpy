@@ -52,7 +52,6 @@ class QemuServer(KhServer):
     jobdir = self.netpath+'/'+str(nid)
     ret = ""
     # allocate nodes
-    print "Allocating nodes: ",nodes
     for node in nodes:
       ret += str(node)+"\n"
       nodedir = os.path.join(jobdir,str(node))
@@ -79,10 +78,10 @@ class QemuServer(KhServer):
       # attached tap to bridge
       br = "br"+str((int(nid) % 256))      
       tapbrcmd = "brctl addif "+br+" "+tap
-      print subprocess.check_output(tapbrcmd, shell=True)
+      subprocess.check_output(tapbrcmd, shell=True)
       # bring interface up
       tapupcmd = "ip link set "+tap+" up"
-      print subprocess.check_output(tapupcmd, shell=True)
+      subprocess.check_output(tapupcmd, shell=True)
       # vhost toggle
       vhost="on"
       if option.has_key('novhost') and option['novhost'] > 0:
@@ -94,7 +93,7 @@ class QemuServer(KhServer):
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
         cmd += " -gdb tcp::"+str(gdb_port) 
-        ret += "gdb: "+str(gdb_port)+" - VM is stalled until GDB connection.\n"
+        ret += "gdb: "+str(gdb_port)+"\n"
       # status fifo
       if option.has_key('s') and option['s'] > 0:
           finish_cmd = "mkfifo "+nodedir+"/finish"
@@ -223,11 +222,11 @@ class QemuServer(KhServer):
     # remove bridge 
     br = "br"+str((int(netid) % 256))      
     try:
-      print subprocess.check_output('ifconfig '+br+' down', shell=True)
+      subprocess.check_output('ifconfig '+br+' down', shell=True)
     except subprocess.CalledProcessError:
       pass
     try:
-      print subprocess.check_output('brctl delbr '+br, shell=True)
+      subprocess.check_output('brctl delbr '+br, shell=True)
     except subprocess.CalledProcessError:
       pass
     # remove records
@@ -253,7 +252,6 @@ class QemuServer(KhServer):
   def inode(self):
     path = '/dev/random'
     if path:
-     print path
      return '0x%016x' % int(os.stat(path)[stat.ST_INO])
     else:
       return None
