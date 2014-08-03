@@ -134,6 +134,7 @@ class KhServer(object):
       exit(1)
     # assign nodes
     gotlist = []
+    print "Allocating nodes: ",nodes
     for node in nodes:
       nid = node[0:node.find(':')]
       gotlist.append(nid)
@@ -272,6 +273,7 @@ class KhServer(object):
         self._print("Warning: no network for node #"+str(node))
         return 0
     self.db_node_set(node, self.config.get('Settings', 'FreeJobID'))
+    print "Removed node "+str(node)+" from network "+str(netid) 
     return "Removed node "+str(node)+" from network "+str(netid) 
 
 
@@ -292,6 +294,7 @@ class KhServer(object):
         self.config.get("BaseDirectories", "jobdata")),str(netid))
     if os.path.exists(datapath) == 1:
       shutil.rmtree(datapath)
+    print "Removing network:",str(netid)
     return "Network "+str(netid)+" removed"
 
 
