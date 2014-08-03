@@ -130,7 +130,7 @@ class QemuServer(KhServer):
       # if perf
       if option.has_key('perf') and option['perf'] > 0:
         perf_events = self.config.get('Qemu','perf_events')
-        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf --append -e "+perf_events+" "
+        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf -e "+perf_events+" "
         cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
         ret += nodedir+"/perf\n"
       else:
