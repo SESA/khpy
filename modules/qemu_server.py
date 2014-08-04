@@ -136,9 +136,12 @@ class QemuServer(KhServer):
         cmd = "("+cmd+")&"
       # cmd file
       with open(nodedir+"/cmd", 'a') as f:
-        f.write(cmd);
+        f.write(cmd+"/n");
       ret += nodedir+"/cmd"
-      subprocess.call(cmd, shell=True, executable='/bin/bash')
+      if option.has_key('t') and option['t'] > 0:
+        ret += "\nTEST RUN: QEMU instance was not allocated\n"
+      else:
+        subprocess.call(cmd, shell=True, executable='/bin/bash')
     # end of per-node for-loop
     return ret
 

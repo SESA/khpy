@@ -5,7 +5,7 @@ import stat
 class QemuClient(KhClient):
   def parse_alloc(self, parser):
     parser.add_argument('--cmd', action=KH_store_optional,
-            help='Append command to end of qemu line')
+            help='Append string to end of qemu cmd')
     parser.add_argument('--perf', action=KH_store_optional_const,
             const=1, help='Enable kvm perf')
     parser.add_argument('--iso', action=KH_store_optional_const,
@@ -13,7 +13,7 @@ class QemuClient(KhClient):
     parser.add_argument('-g', action=KH_store_optional_const,
             const=1, help='Enable gdb server')
     parser.add_argument('-s', action=KH_store_optional_const,
-            const=1, help='VM termination signal')
-    parser.add_argument('--novhost', action=KH_store_optional_const,
-            const=1, help='disable vhost')
+            const=1, help='Signal on termination')
+    parser.add_argument('--no-vhost', action=KH_store_optional_const,
+            const=1, help='Disable vhost')
     return KhClient.parse_alloc(self,parser)

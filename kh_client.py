@@ -57,7 +57,9 @@ class KhClient():
     parser.add_argument('config', action=KH_store_required,
         type=str, help='path to configuration')
     parser.add_argument('-n', action=KH_store_optional, type=int,
-    metavar='num', help='Number of nodes')
+        metavar='num', help='Number of nodes')
+    parser.add_argument('-t', action=KH_store_optional_const,
+            const=1, help='Test run (do not allocate instance)')
     return parser
 
   def parse_clean(self, parser):
@@ -101,8 +103,6 @@ class KhClient():
     # verify file input
     if not os.path.exists(img):
       print "Error: file "+img+" not found"
-      exit(1)
-    if not os.path.exists(config):
       print "Error: file "+config+" not found"
       exit(1)
     # absolute paths
@@ -130,3 +130,5 @@ class KhClient():
   def remove_node(self, node):
     print self.proxy.remove_node(node)
 
+from kh_shared import *
+import ConfigParser 
