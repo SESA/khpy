@@ -272,6 +272,12 @@ class KhServer(object):
       else:
         self._print("Warning: no network for node #"+str(node))
         return 0
+    # remove node directory
+    datapath = os.path.join(os.path.join(self.db_path,
+               self.config.get("BaseDirectories", "jobdata")),str(netid))
+    nodedatapath = os.path.join(datapath, str(node))
+    if os.path.exists(nodedatapath) == 1:
+      shutil.rmtree(nodedatapath)
     self.db_node_set(node, self.config.get('Settings', 'FreeJobID'))
     print "Removed node "+str(node)+" from network "+str(netid) 
     return "Removed node "+str(node)+" from network "+str(netid) 
