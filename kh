@@ -14,8 +14,18 @@ import sys
 khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
 Config = ConfigParser.SafeConfigParser()
-Config.read(os.path.join(khsrc,"kh.cfg"))
 
+print os.path.basename(sys.argv[0])
+
+if (os.path.basename(sys.argv[0]) == "khs"): 
+  configfile = os.path.join(khsrc,"khs.cfg")
+  print "Running as server:", configfile
+
+else:
+  print "Running as client:", os.path.join(khsrc,"kh.cfg")
+  configfile = os.path.join(khsrc,"kh.cfg")
+
+Config.read(configfile)
 
 #''' Query for the configured kh extension '''
 #def get_khtype():
@@ -40,7 +50,7 @@ def load_kh_type():
   clas = Config.get('module','module_class')
   config = Config.get('module','module_config')
   # build configuration set
-  configs=[os.path.join(khsrc,"kh.cfg"), 
+  configs=[configfile, 
       os.path.join(khsrc, config)]
   # import, construct and returns kh object
   sys.path.append(path)
