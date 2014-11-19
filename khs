@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+
+###############################################
+#  Kittyhawk Server Command-line Interface    #
+###############################################
+
+from kh_shared import *
+import argparse
+import ConfigParser 
+import os
+import sys
+
+''' Load kittyhawk configuration '''
+khsrc = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(khsrc)
+Config = ConfigParser.SafeConfigParser()
+
+print os.path.basename(sys.argv[0])
+
+if (os.path.basename(sys.argv[0]) == "khs"): 
+  configfile = os.path.join(khsrc,"khs.cfg")
+  print "Running as server:", configfile
+
+else:
+  print "Running as client:", os.path.join(khsrc,"kh.cfg")
+  configfile = os.path.join(khsrc,"kh.cfg")
+
+Config.read(configfile)
+
+#''' Query for the configured kh extension '''
+#def get_khtype():
+#  cval = Config.get('global', 'type')
+#  sval = os.getenv('KHTYPE')
+#  # explicit config setting trumps any envoirment variables
+#  if len(cval) > 0:
+#    return cval
+#  elif sval != None:
+#    return sval
+#  else:
+#    print "Error: a recognized Kittyhawk extension was not found. Check \
+# configuration of set envoirnment variable."
+#    exit(1)
+#
+
+''' Construct the specified module object ''' 
+def load_kh_type():
+  #TODO: allow this to be env var (var = path to config file)
+  mod  = Config.get('module','module')
+  path = Config.get('module','module_path')
+  clas = Config.get('module','module_class')
+  config = Config.get('module','module_config')
+  # build configuration set
+  configs=[configfile, 
+      os.path.join(khsrc, config)]
+  # import, construct and returns kh object
+  sys.path.append(path)
+  f = __import__(mod, fromlist=[clas])
+  ref = getattr(f, clas)
+  return ref(configs)
+
+# dynamically construct object from external config
+kh = load_kh_type()
+
+# Parser for command-line interface
+par    = argparse.ArgumentParser()
+kh.add_parsers(par.add_subparsers())
+''' process the command line input, jump to function '''
+process_input(vars(par.parse_args()))
