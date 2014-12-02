@@ -207,7 +207,10 @@ class QemuServer(KhServer):
       with open(tappath, 'r') as f:
         tap = f.readline()
         f.close()
-        subprocess.check_output('tunctl -d '+tap, shell=True)
+        try:
+          subprocess.check_output('tunctl -d '+tap, shell=True)
+        except subprocess.CalledProcessError:
+          pass
     return KhServer.remove_node(self, node, netid)
     
   def remove_network(self, netid):
