@@ -22,6 +22,6 @@ remove
 
 
 ###Requirements: 
-python 2.7 
-python-daemon 1.6
-
+python 2.7  
+lockfile 0.10
+python-daemon 1.6 (optional)
