@@ -3,7 +3,7 @@
 #  - root platform class                 #
 ##########################################
 
-from kh_shared import *
+
 import argparse
 import ConfigParser 
 import copy 
@@ -11,13 +11,12 @@ import fnmatch
 import os
 import shutil
 import subprocess
-import daemon
-import lockfile
 import sys
 import signal
-
-from SimpleXMLRPCServer import SimpleXMLRPCServer
 import xmlrpclib
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+from kh_shared import *
+import lockfile
 
 
 class KhServerConfig(object):
@@ -52,8 +51,6 @@ class KhServer(object):
         self.config.get("BaseDirectories","job"))
     # debug info
     self.debug = self.config.get("debug","debug")
-    # deamon
-    self.daemon_context = daemon.DaemonContext()
    
   # Default command parsers ##########################################
 
@@ -357,6 +354,9 @@ class KhServer(object):
 
     print "Starting server..."
     if daemon:
+      print "Laching daemon..."
+      import daemon
+      self.daemon_context = daemon.DaemonContext()
       self.daemon_context.stdin = open(config.stdin_path, 'r')
       self.daemon_context.stdout = open(config.stdout_path, 'w+')
       self.daemon_context.stderr = open(config.stderr_path, 'w+', buffering=0)
