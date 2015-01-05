@@ -242,8 +242,9 @@ class KhServer(object):
         Creates the directories and files nessessary to initialize
         and start the Kittyhawk server
     '''
-    self.clean()
     # create db directories (if needed)
+    if os.path.exists(self.db_path) == 0:
+      os.mkdir(self.db_path)
     for s in self.config.options("BaseDirectories"):
       d = self.config.get("BaseDirectories", s)
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
@@ -355,7 +356,12 @@ class KhServer(object):
     print "Starting server..."
     if daemon:
       print "Laching daemon..."
-      import daemon
+      try:
+        import daemon
+      except ImportError:
+        print "Error: python daemon module is not found. Run with -D to disable daemon"
+        self.stop()
+        exit(1)
       self.daemon_context = daemon.DaemonContext()
       self.daemon_context.stdin = open(config.stdin_path, 'r')
       self.daemon_context.stdout = open(config.stdout_path, 'w+')
