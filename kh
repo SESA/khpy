@@ -15,14 +15,9 @@ khsrc = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(khsrc)
 Config = ConfigParser.SafeConfigParser()
 
-print os.path.basename(sys.argv[0])
-
 if (os.path.basename(sys.argv[0]) == "khs"): 
   configfile = os.path.join(khsrc,"khs.cfg")
-  print "Running as server:", configfile
-
 else:
-  print "Running as client:", os.path.join(khsrc,"kh.cfg")
   configfile = os.path.join(khsrc,"kh.cfg")
 
 Config.read(configfile)
