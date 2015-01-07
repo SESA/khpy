@@ -38,7 +38,9 @@ class KhServer(object):
 
   def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
-    configsrc.append("khdb.cfg")
+    khsrc = os.path.dirname(os.path.abspath(__file__))
+    dbconfigfile = os.path.join(khsrc,"khdb.cfg")
+    configsrc.append(dbconfigfile)
     self.config.read(configsrc)
     self.db_path = self.config.get("database","path")
     self.netpath = os.path.join(self.db_path,
