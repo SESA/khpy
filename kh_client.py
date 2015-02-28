@@ -53,13 +53,13 @@ class KhClient():
     parser.add_argument('network',type=str,action=KH_store_required, 
       help="Network id")
     parser.add_argument('img', action=KH_store_required,
-        type=str, help='path to application')
+        type=str, help='Path to kenel / disk image')
     parser.add_argument('config', action=KH_store_required,
-        type=str, help='path to configuration')
+        type=str, help='Path to configuration')
     parser.add_argument('-n', action=KH_store_optional, type=int,
-        metavar='num', help='Number of nodes')
+        metavar='num', default=1, help='Number of nodes')
     parser.add_argument('-t', action=KH_store_optional_const,
-            const=1, help='Test run (do not allocate instance)')
+        const=1, help='Test run: setup and print boot command without executing')
     return parser
 
   def parse_clean(self, parser):

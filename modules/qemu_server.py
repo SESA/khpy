@@ -1,5 +1,6 @@
 import kh_server
 from kh_server import *
+import math
 import os
 import stat
 import time
@@ -55,14 +56,10 @@ class QemuServer(KhServer):
     for node in nodes:
       ret += str(node)+"\n"
       nodedir = os.path.join(jobdir,str(node))
-      ''' construct base qemu line '''
       cmd = self.config.get('Qemu', 'cmd')
-
-      # networking
+      # create tap, all to network bridge 
       mac = self.generate_mac(node)
       ret += mac+"\n"
-      
-      # create tap for node
       user = "root"
       tapcmd = "tunctl -b -u "+user
       tapfile = os.path.join(nodedir, 'tap')
@@ -74,34 +71,51 @@ class QemuServer(KhServer):
           f.seek(0)
           f.truncate()
           f.write(str(tap))
-
-      # attached tap to bridge
       br = "br"+str((int(nid) % 256))      
       tapbrcmd = "brctl addif "+br+" "+tap
       subprocess.check_output(tapbrcmd, shell=True)
-      # bring interface up
       tapupcmd = "ip link set "+tap+" up"
       subprocess.check_output(tapupcmd, shell=True)
-      # vhost toggle
+      # vhost 
       vhost="on"
       if option.has_key('novhost') and option['novhost'] > 0:
           vhost="off"
       # network command
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost="+vhost+" --device virtio-net,netdev=vlan1,mac="+mac
-
-      # gdb debug server
+      # gdb debug 
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
         cmd += " -gdb tcp::"+str(gdb_port) 
         ret += "gdb: "+str(gdb_port)+"\n"
-      # status fifo
+      # terminal signal fifo
       if option.has_key('s') and option['s'] > 0:
           finish_cmd = "mkfifo "+nodedir+"/finish"
           subprocess.call(finish_cmd, shell=True)
       ## serial log
       cmd += " -serial stdio"
       # ram
-      cmd += " -m "+self.config.get('Qemu', 'ram')
+      ram = self.config.get("Qemu", "default_ram") + "G"
+      if option.has_key('ram') and option['ram'] > 0:
+        ram = str(option['ram']) + "GB"
+      cmd += " -m "+ram
+      # cpus 
+      cpus = self.config.get("Qemu", "default_cpu") 
+      if option.has_key('cpu') and option['cpu'] > 0:
+        cpus= str(option['cpu']) 
+      cmd += " -smp cpus="+cpus
+      #numa
+      numa = int(self.config.get("Qemu", "default_numa"))
+      if option.has_key('numa') and option['numa'] > 0:
+        numa= option['numa']
+      if numa > 1:
+          cpu_per_node = int(math.floor(int(cpus)/numa))
+          for i in range(numa):
+            cpu_list=""
+            if cpu_per_node > 1:
+              cpu_list=str(int(i*cpu_per_node))+"-"+str(((i+1)*(cpu_per_node))-1)
+            else:
+              cpu_list=str(int(i*cpu_per_node))
+            cmd += " -numa node,cpus="+cpu_list
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # display
@@ -127,9 +141,10 @@ class QemuServer(KhServer):
       cmd += "; date >"+nodedir+"/finish;" 
       ret += nodedir+"/finish\n"
       # if perf
-      if option.has_key('perf') and option['perf'] > 0:
-        perf_events = self.config.get('Qemu','perf_events')
-        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf -e "+perf_events+" "
+      if option.has_key('perf')  :
+        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf "
+        if len(option['perf']) > 0:
+          perf_cmd += option['perf']
         cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
         ret += nodedir+"/perf\n"
       else:
