@@ -106,9 +106,9 @@ class QemuServer(KhServer):
       #numa
       numa = int(self.config.get("Qemu", "default_numa"))
       if option.has_key('numa') and option['numa'] > 0:
-        numa= option['numa']
+        numa= int(option['numa'])
       if numa > 1:
-          cpu_per_node = int(math.floor(int(cpus)/numa))
+          cpu_per_node = int(math.floor(int(cpus)/int(numa)))
           for i in range(numa):
             cpu_list=""
             if cpu_per_node > 1:
