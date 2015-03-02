@@ -96,7 +96,7 @@ class QemuServer(KhServer):
       # ram
       ram = self.config.get("Qemu", "default_ram") + "G"
       if option.has_key('ram') and option['ram'] > 0:
-        ram = str(option['ram']) + "GB"
+        ram = str(option['ram']) + "G"
       cmd += " -m "+ram
       # cpus 
       cpus = self.config.get("Qemu", "default_cpu") 
