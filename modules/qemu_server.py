@@ -76,12 +76,10 @@ class QemuServer(KhServer):
       subprocess.check_output(tapbrcmd, shell=True)
       tapupcmd = "ip link set "+tap+" up"
       subprocess.check_output(tapupcmd, shell=True)
-      # vhost 
-      vhost="on"
-      if option.has_key('novhost') and option['novhost'] > 0:
-          vhost="off"
       # network command
-      cmd += " --netdev tap,id=vlan1,ifname="+tap+",script=no,downscript=no,vhost="+vhost+" --device virtio-net,netdev=vlan1,mac="+mac
+      cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
+              script=no,downscript=no,vhost=on --device \
+              virtio-net,netdev=vlan1,mac="+mac
       # gdb debug 
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)

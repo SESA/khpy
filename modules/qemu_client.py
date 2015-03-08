@@ -14,8 +14,6 @@ class QemuClient(KhClient):
             help='Append string to end of qemu command ')
     parser.add_argument('--perf', action=KH_store_optional,
             default="", help='Enable kvm perf')
-    parser.add_argument('--no-vhost', action=KH_store_optional_const,
-            const=1, help='Disable vhost')
     parser.add_argument('--diskimg', action=KH_store_optional_const,
             const=1, help='Load as disk image (ignores config)')
     parser.add_argument('-g', action=KH_store_optional_const,
