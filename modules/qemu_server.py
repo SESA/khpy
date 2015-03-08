@@ -57,29 +57,6 @@ class QemuServer(KhServer):
       ret += str(node)+"\n"
       nodedir = os.path.join(jobdir,str(node))
       cmd = self.config.get('Qemu', 'cmd')
-      # create tap, all to network bridge 
-      mac = self.generate_mac(node)
-      ret += mac+"\n"
-      user = "root"
-      tapcmd = "tunctl -b -u "+user
-      tapfile = os.path.join(nodedir, 'tap')
-      kh_server.touch(tapfile)
-      tap = subprocess.check_output(tapcmd, shell=True).rstrip()
-      ret += "tap: "+tap+"\n"
-      if os.path.isfile(tapfile) == 1:
-        with open(tapfile, "a") as f:
-          f.seek(0)
-          f.truncate()
-          f.write(str(tap))
-      br = "br"+str((int(nid) % 256))      
-      tapbrcmd = "brctl addif "+br+" "+tap
-      subprocess.check_output(tapbrcmd, shell=True)
-      tapupcmd = "ip link set "+tap+" up"
-      subprocess.check_output(tapupcmd, shell=True)
-      # network command
-      cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
-              script=no,downscript=no,vhost=on --device \
-              virtio-net,netdev=vlan1,mac="+mac
       # gdb debug 
       if option.has_key('g') and option['g'] > 0:
         gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
@@ -114,6 +91,31 @@ class QemuServer(KhServer):
             else:
               cpu_list=str(int(i*cpu_per_node))
             cmd += " -numa node,cpus="+cpu_list
+      # naw tap added to network bridge 
+      mac = self.generate_mac(node)
+      ret += mac+"\n"
+      tap = "kh_"+str(node)
+      tapcmd = "ip tuntap add "+tap+" mode tap multi_queue"
+      kh_server.touch(os.path.join(nodedir, 'tap'))
+      subprocess.check_output(tapcmd, shell=True).rstrip()
+      ret += "tap: "+tap+"\n"
+      tapfile = os.path.join(nodedir, 'tap')
+      kh_server.touch(tapfile)
+      if os.path.isfile(tapfile) == 1:
+        with open(tapfile, "a") as f:
+          f.seek(0)
+          f.truncate()
+          f.write(str(tap))
+      br = "kh_br"+str((int(nid) % 256))      
+      tapbrcmd = "brctl addif "+br+" "+tap
+      subprocess.check_output(tapbrcmd, shell=True)
+      tapupcmd = "ip link set "+tap+" up"
+      subprocess.check_output(tapupcmd, shell=True)
+      # network command
+      cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
+              script=no,downscript=no,vhost=on,queues="+str(cpus)
+      cmd += " --device virtio-net-pci,mq=on,\
+              vectors="+str((2*cpus)+2)+"netdev=vlan1,mac="+mac
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # display
@@ -171,7 +173,7 @@ class QemuServer(KhServer):
     netpath = os.path.join(self.netpath, str(nid))
 
     # configure bridge
-    br = "br"+ip_oct2
+    br = "kh_br"+ip_oct2
     brcmd = "brctl addbr "+br
     subprocess.check_output(brcmd, shell=True)
     
@@ -221,7 +223,7 @@ class QemuServer(KhServer):
         tap = f.readline()
         f.close()
         try:
-          subprocess.check_output('tunctl -d '+tap, shell=True)
+          subprocess.check_output('ip link delete '+tap, shell=True)
         except subprocess.CalledProcessError:
           pass
     return KhServer.remove_node(self, node, netid)
@@ -239,7 +241,7 @@ class QemuServer(KhServer):
     # remove dnsmasq
     self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
     # remove bridge 
-    br = "br"+str((int(netid) % 256))      
+    br = "kh_br"+str((int(netid) % 256))      
     try:
       subprocess.check_output('ifconfig '+br+' down', shell=True)
     except subprocess.CalledProcessError:
