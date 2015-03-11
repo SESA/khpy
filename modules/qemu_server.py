@@ -113,9 +113,9 @@ class QemuServer(KhServer):
       subprocess.check_output(tapupcmd, shell=True)
       # network command
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
-              script=no,downscript=no,vhost=on,queues="+str(cpus)
+script=no,downscript=no,vhost=on,queues="+str(cpus)
       cmd += " --device virtio-net-pci,mq=on,\
-              vectors="+str((2*cpus)+2)+"netdev=vlan1,mac="+mac
+vectors="+str((2*int(cpus))+2)+",netdev=vlan1,mac="+mac
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # display
@@ -223,8 +223,9 @@ class QemuServer(KhServer):
         tap = f.readline()
         f.close()
         try:
-          subprocess.check_output('ip link delete '+tap, shell=True)
+          out=subprocess.check_output('ip link delete '+tap, shell=True)
         except subprocess.CalledProcessError:
+          print out
           pass
     return KhServer.remove_node(self, node, netid)
     
