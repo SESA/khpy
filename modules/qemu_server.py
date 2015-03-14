@@ -226,9 +226,9 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
         tap = f.readline()
         f.close()
         try:
-          out=subprocess.check_output('ip link delete '+tap, shell=True)
+          tapdelcmd ='ip tuntap del '+tap+' mode tap multi_queue'
+          subprocess.check_output(tapdelcmd, shell=True)
         except subprocess.CalledProcessError:
-          print out
           pass
     return KhServer.remove_node(self, node, netid)
     
