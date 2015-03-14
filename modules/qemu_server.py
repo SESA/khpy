@@ -112,10 +112,13 @@ class QemuServer(KhServer):
       tapupcmd = "ip link set "+tap+" up"
       subprocess.check_output(tapupcmd, shell=True)
       # network command
+      netcpu = cpus
+      if int(netcpu) == 1: 
+          netcpu = 2
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
-script=no,downscript=no,vhost=on,queues="+str(cpus)
+script=no,downscript=no,vhost=on,queues="+str(netcpu)
       cmd += " --device virtio-net-pci,mq=on,\
-vectors="+str((2*int(cpus))+2)+",netdev=vlan1,mac="+mac
+vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       # pid
       cmd += " -pidfile "+nodedir+"/pid"
       # display
