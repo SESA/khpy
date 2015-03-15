@@ -115,6 +115,8 @@ class QemuServer(KhServer):
       netcpu = cpus
       if int(netcpu) == 1: 
           netcpu = 2
+      else if int(netcpu) > 8:
+          netcpu = 8
       cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
 script=no,downscript=no,vhost=on,queues="+str(netcpu)
       cmd += " --device virtio-net-pci,mq=on,\
