@@ -148,7 +148,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       # pinning
       if option.has_key('pin') and option['pin'] >= 0:
         # pinning offset
-        if option.has_key('pin') and option['poff'] > 0:
+        if option.has_key('poff') and option['poff'] > 0:
             poff=option['poff']
         else:
             poff=1
