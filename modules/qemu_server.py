@@ -145,7 +145,18 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       # finish
       cmd += "; date >"+nodedir+"/finish;" 
       ret += nodedir+"/finish\n"
-      # if perf
+      # pinning
+      if option.has_key('pin') and option['pin'] >= 0:
+        # pinning offset
+        if option['poff'] > 0:
+            poff=option['poff']
+        else:
+            poff=1
+        pcmd = "taskset -a -c "+str(pin)
+        for i in range(0,(int(cpus)-1)):
+            pcmd += ","+str(int(i*int(poff)))
+        cmd = pcmd+' '+cmd 
+      # perf
       if option.has_key('perf')  :
         perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf "
         if len(option['perf']) > 0:
