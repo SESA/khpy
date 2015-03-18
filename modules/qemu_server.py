@@ -146,15 +146,8 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       cmd += "; date >"+nodedir+"/finish;" 
       ret += nodedir+"/finish\n"
       # pinning
-      if option.has_key('pin') and option['pin'] >= 0:
-        # pinning offset
-        if option.has_key('poff') and option['poff'] > 0:
-            poff=option['poff']
-        else:
-            poff=1
+      if option.has_key('pin') and len(option['pin']) >= 0:
         pcmd = "taskset -a -c "+str(pin)
-        for i in range(0,(int(cpus)-1)):
-            pcmd += ","+str(int(i*int(poff)))
         cmd = pcmd+' '+cmd 
       # perf
       if option.has_key('perf')  :

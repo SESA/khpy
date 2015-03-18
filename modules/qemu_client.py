@@ -8,10 +8,8 @@ class QemuClient(KhClient):
         metavar='num', help='Total RAM (GB)')
     parser.add_argument('--cpu', action=KH_store_optional, type=int,
         metavar='num', help='Total CPUs ')
-    parser.add_argument("--pin", action=KH_store_optional, type=int,
-            metavar="pin", help="Pin starting at core <pin>")
-    parser.add_argument("--pinoffset", action=KH_store_optional, type=int,
-            metavar="poff", help="Pin cored by offset <poff>")
+    parser.add_argument("--pin", action=KH_store_optional, type=str,
+            metavar="pin", help="Core list for taskset -c (e.g., 1-2,11,12")
     parser.add_argument('--numa', action=KH_store_optional,
             metavar="num", help='NUMA nodes (resources devided evenly)')
     parser.add_argument('--cmd', action=KH_store_optional,
