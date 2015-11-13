@@ -2,6 +2,7 @@
 USAGE="$0 khpy visualizer to launch run $0 with no args"
 khmon=khmon/bin/khmon
 khdb=khdb
+khcfg=khs.cfg
 
 if [[ $# != 0 ]]; then
   echo $USAGE > /dev/stderr
@@ -14,7 +15,11 @@ dirpath=$(dirname $binpath)
 #echo arg0=$0 binpath=$binpath dirpath=$dirpath
 
 khmon=$dirpath/$khmon
-khdb=$dirpath/$khdb
+khcfg=$dirpath/$khcfg
+khdbdir=$(grep db_install_path= $khcfg)
+khdbdir=${khdbdir##*=}
+
+khdb=$khdbdir/$khdb
 
 if [[ ! -d $khdb/Records/Node ]]; then
   echo "ERROR: $khdb does not seem to be a valid kh database" > /dev/stderr

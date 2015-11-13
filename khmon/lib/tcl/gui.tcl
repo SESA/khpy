@@ -173,14 +173,12 @@ proc GraphicsSupport {} {
         set yl [expr $y($viewer) + $objImgHeight/2 + 1]
 
         set img $defImage($viewer)        
-        # if {$group != "free" } { 
-        #     if {$inet == 1 || $xnet == 1 || [string is digit -strict $pnets] == 0} {
-        #         set img gateway.gif
-        #     }
-        #     if {[info exists curStates($node)] && [info exists images($curStates($node).gif)]} {
-        #         set img $curStates($node).gif
-        #     } 
-        # }
+        
+	if {$group != "free" } { 
+	    if {[info exists curStates($node)] && [info exists images($curStates($node).gif)]} {
+		set img $curStates($node).gif
+	    } 
+        }
 
         $wpath.ob.objcan create image $x($viewer) $y($viewer) -image $img -tags [list $group $obj Object]
         $wpath.ob.objcan create text $x($viewer) $yl  -anchor n -text "$node" \
