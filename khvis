@@ -1,0 +1,29 @@
+#!/bin/bash
+USAGE="$0 khpy visualizer to launch run $0 with no args"
+khmon=khmon/bin/khmon
+khdb=khdb
+
+if [[ $# != 0 ]]; then
+  echo $USAGE > /dev/stderr
+  exit 0
+fi
+ 
+binpath=$(readlink -n -f $0)
+dirpath=$(dirname $binpath) 
+
+#echo arg0=$0 binpath=$binpath dirpath=$dirpath
+
+khmon=$dirpath/$khmon
+khdb=$dirpath/$khdb
+
+if [[ ! -d $khdb/Records/Node ]]; then
+  echo "ERROR: $khdb does not seem to be a valid kh database" > /dev/stderr
+  exit -1
+fi
+
+if [[ -x $khmon ]]; then
+  exec $khmon LOCAL $khdb
+else
+  echo "ERROR: $khmon does not exist or is not executable" > /dev/stderr
+  exit -1
+fi
