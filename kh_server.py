@@ -63,7 +63,7 @@ class KhServer(object):
     # clean
     self.parse_clean(subpar.add_parser('clean',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Remove all nodes and networks"))
+      description="Stop server and delete database"))
     # info
     self.parse_info(subpar.add_parser('info',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -71,19 +71,23 @@ class KhServer(object):
     # install
     self.parse_install(subpar.add_parser('install',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Install Kittyhawk database. Initialize freepool "))
+      description="Install database"))
+    # reinstall
+    self.parse_install(subpar.add_parser('reinstall',
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+      description="Stop server, delete and reinstall database, relaunch server"))
     # restart
     self.parse_restart(subpar.add_parser('restart',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Reboot server"))
+      description="Restart khpy server"))
     # start
     self.parse_start(subpar.add_parser('start',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Bring server online."))
+      description="Start khpy server "))
     # stop
     self.parse_stop(subpar.add_parser('stop',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Take server offline"))
+      description="Stop khpy server daemon (if found)"))
     
   def parse_clean(self, parser):
     parser.set_defaults(func=self.clean)
@@ -97,13 +101,27 @@ class KhServer(object):
     parser.set_defaults(func=self.install)
     return parser
 
+  def parse_reinstall(self, parser):
+    parser.add_argument('-D', 
+            action=KH_store_optional_const, 
+            const=1,
+            help='Start daemon ( req:python-daemon )')
+    parser.set_defaults(func=self.reinstall)
+    return parser
+
   def parse_restart(self, parser):
+    parser.add_argument('-D', 
+            action=KH_store_optional_const, 
+            const=1,
+            help='Restart daemon ( req:python-daemon )')
     parser.set_defaults(func=self.restart)
     return parser
 
   def parse_start(self, parser):
-    parser.add_argument('-D', action=KH_store_optional_const, const=1,
-    help='No not run a deamon')
+    parser.add_argument('-D', 
+            action=KH_store_optional_const, 
+            const=1,
+            help='Start daemon ( req:python-daemon )')
     parser.set_defaults(func=self.start)
     return parser
 
@@ -111,9 +129,8 @@ class KhServer(object):
     parser.set_defaults(func=self.stop)
     return parser
 
-
   # Client actions ####################################################
-  #     these methods are called remotely, and should -eventually- contain
+  #     these methods are called remotely and should -eventually- contain
   #     verification
 
   def alloc_client(self, jobid, count):
@@ -193,13 +210,12 @@ class KhServer(object):
     return self.remove_network(network)
 
   # Server actions ####################################################
-  ''' these methods should be called directly from the servers command line
-  interface, not from a client'''
+  # these methods are called directly from the CLI 
+  #
 
   def clean(self):
     ''' Clean all nodes and networks '''
-    print "Removing all nodes and networks"
-
+    print "Cleaning up service..."
     if self.server_is_online() == True:
       self.stop()
 
@@ -231,10 +247,8 @@ class KhServer(object):
       self.db_node_set(i, self.config.get('Settings','FreeJobID'))
     print "Setup complete."
 
-
   def install(self):
     ''' Install empty Kittyhawk framework 
-    
         Creates the directories and files nessessary to initialize
         and start the Kittyhawk server
     '''
@@ -270,11 +284,14 @@ class KhServer(object):
     self.init(0,int(start))
     print "Initialization complete. Ready to start "
 
+  def reinstall(self, option={}):
+      self.stop()
+      self.clean()
+      self.install()
+      self.start(option)
 
   def remove_node(self, node, netid=None):
-    ''' Remove a paticular node from a network
-
-    '''
+    ''' Remove a paticular node from a network '''
     if netid is None:
       nodes = self.db_node_get(node, '*')
       noderec = nodes[0]
@@ -314,34 +331,28 @@ class KhServer(object):
     print "Removing network:",str(netid)
     return "Network "+str(netid)+" removed"
 
-
-
-
   def info(self):
     ''' Display all network information '''
-#list each app and the number of nodes
+    #list each app and the number of nodes
     for file in os.listdir(self.data_job_path):
       job = file[0:file.find(':')]
       jobid = file[file.find(':')+1:len(file)]
       nodes = self.db_node_get('*',jobid)
       print job, jobid, len(nodes)
 
-
-  def restart(self):
+  def restart(self, option={}):
     ''' Stop and resume the server 
         Previous state is kept intact (use 'clean' otherwise)
     '''
     self.stop()
-    self.start()
+    self.start(option)
     return 0
-
 
   def server_config(self):
     ''' Server settings must be defined in child class '''
     self._print("Error: child class must contain server_config() function")
     exit(1)
     return 0
-
 
   def start(self, option={}):
     ''' Bring server online
@@ -351,12 +362,9 @@ class KhServer(object):
         should check if the server had not previous initialized and do so.
     '''
     config = self.server_config()
-
-    # disable daemon
     daemon = False
     if option.has_key('D') and option['D'] is 1:
         daemon = True
-
     print "Starting server..."
     if daemon:
       # aquire lock on pidfile
@@ -394,7 +402,6 @@ class KhServer(object):
     self._print("Listening on "+config.server_ip+":"+str(config.server_port))
     server.serve_forever()
 
-
   def stop(self):
     ''' Take server offline '''
     config = self.server_config()
@@ -424,6 +431,7 @@ class KhServer(object):
 
 
   # validation  ##########################################################
+  #
 
   def node_is_valid(self, node):
     ''' Verify that a node is allocated
@@ -453,10 +461,8 @@ class KhServer(object):
     lock.break_lock()
     return False
 
-
   def network_is_valid(self, net):
     ''' Verify that a network is active
-
         Return True/False
     '''
     if self.db_net_get(net) is None:
@@ -468,9 +474,8 @@ class KhServer(object):
   # database control ##########################################################
 
   #  Network methods
-
-  def db_net_set(self):
-    ''' Grab next netid, increment count
+  def db_net_set(self): 
+    ''' Grab next netid, increment count 
         Always returns int
     '''
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
@@ -521,7 +526,6 @@ class KhServer(object):
         return None
 
   #  Node methods
-
   def db_node_get(self, node, net, count=None):
     ''' Return matching record(s)
 
@@ -551,7 +555,6 @@ class KhServer(object):
     touch(fnew)
 
   # utility methods #############################################
-
   def _print(self, message, stream=None):
       """ Emit a message to the specified stream (default `sys.stderr`). """
       if stream is None:
