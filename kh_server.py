@@ -353,21 +353,20 @@ class KhServer(object):
     config = self.server_config()
 
     # disable daemon
-    daemon = True
+    daemon = False
     if option.has_key('D') and option['D'] is 1:
-        daemon = False
-
-    # aquire lock on pidfile
-    lock = lockfile.FileLock(config.pidfile_path)
-    while not lock.i_am_locking():
-      try:
-        lock.acquire(timeout=3)  # wait up to 3 seconds
-      except lockfile.LockTimeout:
-        print "Server is already running"
-        exit(1)
+        daemon = True
 
     print "Starting server..."
     if daemon:
+      # aquire lock on pidfile
+      lock = lockfile.FileLock(config.pidfile_path)
+      while not lock.i_am_locking():
+        try:
+          lock.acquire(timeout=3)  # wait up to 3 seconds
+        except lockfile.LockTimeout:
+          print "Server is already running"
+          exit(1)
       print "Laching daemon..."
       try:
         import daemon
