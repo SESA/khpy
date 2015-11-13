@@ -5,8 +5,8 @@
 
 
 import argparse
-import ConfigParser 
-import copy 
+import ConfigParser
+import copy
 import fnmatch
 import os
 import shutil
@@ -43,6 +43,9 @@ class KhServer(object):
     configsrc.append(dbconfigfile)
     self.config.read(configsrc)
     self.db_path = self.config.get("database","path")
+    print "****"
+    print self.db_path
+    print "****"
     self.netpath = os.path.join(self.db_path,
         self.config.get("BaseDirectories","jobdata"))
     self.data_node_path = os.path.join(self.db_path,
@@ -53,7 +56,7 @@ class KhServer(object):
         self.config.get("BaseDirectories","job"))
     # debug info
     self.debug = self.config.get("debug","debug")
-   
+
   # Default command parsers ##########################################
 
   def add_parsers(self, subpar):
@@ -116,9 +119,9 @@ class KhServer(object):
   def alloc_client(self, jobid, count):
     ''' Allocate a Node on a Network. Called through client interface '''
     #TODO verify network
-    #if jobid == None: 
+    #if jobid == None:
     #  print "Error: network not found"
-    #  exit(1) 
+    #  exit(1)
     # create data directory
     datapath = os.path.join(self.db_path,
         self.config.get("BaseDirectories", "jobdata")+'/'+str(jobid))
@@ -163,7 +166,7 @@ class KhServer(object):
 
   def network_client(self,uid):
     ''' Allocate a network '''
-    jid =  self.db_net_set() 
+    jid =  self.db_net_set()
     net_path = os.path.join(self.netpath, str(jid))
     net_uid_path = os.path.join(net_path, "uid")
     if os.path.exists(net_path) == 0:
@@ -210,31 +213,22 @@ class KhServer(object):
     npath = os.path.join(self.netpath)
     if os.path.isdir(npath):
         shutil.rmtree(npath) # delete directory tree!
-    # remove job data subdirectories 
+    # remove job data subdirectories
     datapath = os.path.join(self.db_path,
         self.config.get("BaseDirectories", "jobdata"))
     if os.path.isdir(datapath):
         shutil.rmtree(datapath)
     os.mkdir(datapath)
 
-
-  def init(self, count=0):
+  def init(self, count=0, start=0):
     ''' Initilaize the Kittyhawk playform
         Reset counts to default. Reset node and network records
     '''
     if count == 0:
       count=self.config.getint("Defaults", "instance_max")
-    # set record for each node 
-    for i in range(2,count):
+    # set record for each node
+    for i in range(start,start+count):
       self.db_node_set(i, self.config.get('Settings','FreeJobID'))
-    # set ids to default  
-    for s in self.config.options("BaseFiles"):
-      d = self.config.get("BaseFiles", s)
-      if os.path.isfile(os.path.join(self.db_path, d)) == 1:
-        with open(self.db_path+'/'+self.config.get('BaseFiles', s), "a") as f:
-          f.seek(0)
-          f.truncate()
-          f.write(self.config.get('Defaults',s))
     print "Setup complete."
 
 
@@ -245,8 +239,10 @@ class KhServer(object):
         and start the Kittyhawk server
     '''
     # create db directories (if needed)
+    print self.db_path
     if os.path.exists(self.db_path) == 0:
       os.mkdir(self.db_path)
+      print self.db_path
     for s in self.config.options("BaseDirectories"):
       d = self.config.get("BaseDirectories", s)
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
@@ -256,7 +252,22 @@ class KhServer(object):
       d = self.config.get("BaseFiles", s)
       if os.path.exists(os.path.join(self.db_path, d)) == 0:
         touch(os.path.join(self.db_path, d))
-    self.init()
+        with open(self.db_path+'/'+self.config.get('BaseFiles', s), "a") as f:
+          f.seek(0)
+          f.truncate()
+          f.write(self.config.get('Defaults',s))
+    # set ids to default
+    #if os.path.exists("/opt/khdb/Ctl/NodeId") == False:
+    #    with open("/opt/khdb/Ctl/NodeId", "w+") as f:
+    #        f.seek(0)
+    #        f.truncate()
+    #        f.write("2");
+    with open(self.db_path+'/'+self.config.get("BaseFiles","nodeid") ,"r+") as f:
+        start=f.read()
+        f.seek(0)
+        f.truncate()
+        f.write(str(int(start)+128))
+    self.init(0,int(start))
     print "Initialization complete. Ready to start "
 
 
@@ -279,13 +290,13 @@ class KhServer(object):
     if os.path.exists(nodedatapath) == 1:
       shutil.rmtree(nodedatapath)
     self.db_node_set(node, self.config.get('Settings', 'FreeJobID'))
-    print "Removed node "+str(node)+" from network "+str(netid) 
-    return "Removed node "+str(node)+" from network "+str(netid) 
+    print "Removed node "+str(node)+" from network "+str(netid)
+    return "Removed node "+str(node)+" from network "+str(netid)
 
 
   def remove_network(self, netid):
-    ''' Remove a network, free connected nodes 
-    
+    ''' Remove a network, free connected nodes
+
         This method will reset the network and nodes records and
         delete the network directory. Make sure you are finished
         with all data within the network directory (e.g, pidfiles)
@@ -333,8 +344,8 @@ class KhServer(object):
 
 
   def start(self, option={}):
-    ''' Bring server online 
-    
+    ''' Bring server online
+
         By default, the server will resume its pervious state, presuming other
         processes are still runningi externally. Optionally, this function
         should check if the server had not previous initialized and do so.
@@ -396,7 +407,7 @@ class KhServer(object):
       except lockfile.LockTimeout:
         lock.break_lock()
         if os.path.isfile(config.pidfile_path) == True:
-          try: 
+          try:
             pid=int(next(open(config.pidfile_path)))
             self._print("removing server process, pid="+str(pid))
             try:
@@ -422,7 +433,7 @@ class KhServer(object):
     '''
     pull = self.db_node_get(node,'*')
     if len(pull) is 1:
-      noderec = pull[0] 
+      noderec = pull[0]
       netid = noderec[noderec.find(':')+1:len(noderec)]
       # verify node is assigned to a network
       if netid is not self.config.get('Settings','FreeJobID'):
@@ -451,7 +462,7 @@ class KhServer(object):
     '''
     if self.db_net_get(net) is None:
       return False
-    else: 
+    else:
       return True # we may want some additional validation here...
 
 
@@ -459,9 +470,8 @@ class KhServer(object):
 
   #  Network methods
 
-  def db_net_set(self): 
-    ''' Grab next netid, increment count 
-    
+  def db_net_set(self):
+    ''' Grab next netid, increment count
         Always returns int
     '''
     rid=int(next(open(self.db_path+'/'+self.config.get('BaseFiles','jobid'))))
@@ -474,8 +484,8 @@ class KhServer(object):
     return rid
 
   def db_net_rm(self, net):
-    ''' Remove network directory, return (expired) jobid 
-    
+    ''' Remove network directory, return (expired) jobid
+
         Only run this once you are done with all the files within!
     '''
     path = self.db_net_get(net)
@@ -497,12 +507,12 @@ class KhServer(object):
       uid_file = os.path.join(os.path.join(self.netpath, name), "uid")
       if os.path.isfile(uid_file):
         owner = int(next(open(uid_file)))
-        if uid == owner: 
+        if uid == owner:
           ret.append(name)
     return ret
 
   def db_net_get(self, net):
-    ''' Verify network, return network path 
+    ''' Verify network, return network path
         None is return for missing network
     '''
     ndir = os.path.join(self.netpath, str(net))
@@ -514,10 +524,10 @@ class KhServer(object):
   #  Node methods
 
   def db_node_get(self, node, net, count=None):
-    ''' Return matching record(s) 
-    
+    ''' Return matching record(s)
+
         Upto 'count' many
-    ''' 
+    '''
     f = str(node)+":"+str(net)
     retlist=[]
     for file in os.listdir(self.data_node_path):
@@ -528,7 +538,7 @@ class KhServer(object):
     return retlist
 
   def db_node_rm(self, node, net):
-    ''' delete matching node record(s) 
+    ''' delete matching node record(s)
     '''
     f = str(node)+":"+str(net)
     for file in os.listdir(self.data_node_path):
@@ -540,7 +550,7 @@ class KhServer(object):
     self.db_node_rm(str(node), "*")
     fnew = self.data_node_path+ "/"+str(node)+":"+str(net)
     touch(fnew)
-  
+
   # utility methods #############################################
 
   def _print(self, message, stream=None):
