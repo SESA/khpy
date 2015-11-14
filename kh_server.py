@@ -2,8 +2,6 @@
 #  Kittyhawk Command-line Interface      #
 #  - root platform class                 #
 ##########################################
-
-
 import argparse
 import ConfigParser
 import copy
@@ -17,7 +15,6 @@ import xmlrpclib
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from kh_shared import *
 import lockfile
-
 
 class KhServerConfig(object):
   def __init__(self, server_ip, server_port, pidfile_path, stdin_path,
@@ -35,7 +32,6 @@ class KhServerConfig(object):
 
 # Kittyhawk root server object
 class KhServer(object):
-
   def __init__(self, configsrc):
     self.config = ConfigParser.SafeConfigParser()
     khsrc = os.path.dirname(os.path.abspath(__file__))
@@ -43,9 +39,6 @@ class KhServer(object):
     configsrc.append(dbconfigfile)
     self.config.read(configsrc)
     self.db_path = self.config.get("database","path")
-    print "****"
-    print self.db_path
-    print "****"
     self.netpath = os.path.join(self.db_path,
         self.config.get("BaseDirectories","jobdata"))
     self.data_node_path = os.path.join(self.db_path,
@@ -270,12 +263,6 @@ class KhServer(object):
           f.seek(0)
           f.truncate()
           f.write(self.config.get('Defaults',s))
-    # set ids to default
-    #if os.path.exists("/opt/khdb/Ctl/NodeId") == False:
-    #    with open("/opt/khdb/Ctl/NodeId", "w+") as f:
-    #        f.seek(0)
-    #        f.truncate()
-    #        f.write("2");
     with open(self.db_path+'/'+self.config.get("BaseFiles","nodeid") ,"r+") as f:
         start=f.read()
         f.seek(0)
