@@ -56,7 +56,7 @@ class KhServer(object):
     # clean
     self.parse_clean(subpar.add_parser('clean',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Stop server and delete database"))
+      description="Stop server and clean state "))
     # info
     self.parse_info(subpar.add_parser('info',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -64,11 +64,11 @@ class KhServer(object):
     # install
     self.parse_install(subpar.add_parser('install',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Install database"))
+      description="Install state to database"))
     # reinstall
     self.parse_install(subpar.add_parser('reinstall',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Stop server, delete and reinstall database, relaunch server"))
+      description="Clean, delete and reinstall database"))
     # restart
     self.parse_restart(subpar.add_parser('restart',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -208,31 +208,20 @@ class KhServer(object):
 
   def clean(self):
     ''' Clean all nodes and networks '''
-    print "Cleaning up service..."
+    print "Cleaning up nodes and networks..."
     if self.server_is_online() == True:
       self.stop()
-
     nets = self.db_net_list()
+    # remove all nets
     for name in nets:
       self.remove_network(name)
-
-    # reset node records
-    self.db_node_rm('*','*')
-    # remove all nets
-    npath = os.path.join(self.netpath)
-    if os.path.isdir(npath):
-        shutil.rmtree(npath) # delete directory tree!
-    # remove job data subdirectories
-    datapath = os.path.join(self.db_path,
-        self.config.get("BaseDirectories", "jobdata"))
-    if os.path.isdir(datapath):
-        shutil.rmtree(datapath)
-    os.mkdir(datapath)
+    # TODO: this should eventually remove all of *my* state from the db
+    # (network dirs, node records, ctl settings)
+    # with the notion that the db maybe shared between servers
 
   def init(self, count=0, start=0):
     ''' Initilaize the Kittyhawk playform
-        Reset counts to default. Reset node and network records
-    '''
+        Reset counts to default. Reset node and network records '''
     if count == 0:
       count=self.config.getint("Defaults", "instance_max")
     # set record for each node
