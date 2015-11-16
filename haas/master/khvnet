@@ -1,0 +1,15 @@
+    1  hostname cisco-44
+    2  exit
+    3  apt-get install vlan
+    4  ifconfig
+    5  modprobe 8021q
+    6  vconfig add eth1 1054
+    7  ip addr add 192.168.20.44/24 dev eth1.1054
+    8  ip link set dev eth1.1054 up
+    9  ifconfig eth1.1054
+   10  ping -c 3 192.168.20.18
+   12  ip link add link eth1.1054 eth1.1054.2 type vlan proto 802.1Q id 2
+   13  ip addr add 192.168.30.44/24 dev eth1.1054.2
+   14  ip link set dev eth1.1054.2 up
+   15  ifconfig eth1.1054.2
+   16  ping -c 3 192.168.30.18

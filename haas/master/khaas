@@ -1,0 +1,241 @@
+#!/bin/bash
+#set -x
+
+
+export PROJECT=${KH_PROJECT:-jon}
+export PROJECT_NET=${KH_PROJECT_NET:-$PROJECT}
+export HCMD=haas
+
+
+processargs()
+{
+  if [[ $# == 0 ]]
+  then
+    usage
+    exit -1
+  fi
+
+  dofunc=$1
+}
+
+function getJsonVal() {
+   if [ \( $# -ne 1 \) -o \( -t 0 \) ]; then
+       echo "Usage: getJsonVal 'key' < /tmp/file";
+       echo "   -- or -- ";
+       echo " cat /tmp/input | getJsonVal 'key'";
+       return;
+   fi;
+   python -c "import json,sys;sys.stdout.write(json.dumps(json.load(sys.stdin)$1))" 2> /dev/null
+   return $?
+}
+
+usage()
+{
+  local func=$1
+  if [[ -z $func ]]
+  then
+     echo "USAGE:  ${0##*/} func args" >&2
+     grep '^function' $0
+  else
+     case "$func" in 
+         'acquireNodes')
+            echo "USAGE: ${0##*/} acquireNodes [-n netid[,netid,...]]"\
+" [-p num] [-i] [-x] [-c credentials] user [num of nodes]" >&2
+            echo "     -n netid[,netid,...] : add the nodes to the existing"\
+" Private networks identified" >&2
+            echo "                by netid" >&2
+            echo "     -p num   : create num new Private networks for the"\
+" nodes">&2
+            echo "     -i       : add nodes to the Internal public network" >&2
+            echo "     -x       : add nodes to the External network" >&2
+            echo "     -c cred  : associated credentials with user" >&2
+            echo "     user     : user to get the nodes for" >&2
+            echo "  num of nodes: number of nodes to get default is 1" >&2
+            ;;
+          *)
+            usage
+            ;;
+     esac
+  fi
+}
+
+function freeNode 
+{
+  local free=$(${HCMD} list_free_nodes)
+  free=${free/[/}
+  free=${free/]/}
+  free=${free//\"/}
+  free=( ${free//,/} )
+  
+  echo ${free[0]}
+  
+}
+
+function nodeNIC
+{
+  local info=$(${HCMD} show_node $1)
+  local mac=${info/#\{\"nics\": [\{\"macaddr\": \"/}
+  mac=${mac%%\"*}
+  label=${info/\{\"nics\": [\{\"macaddr\": \"/}
+  label=${label/#*label\": \"/}
+  label=${label%%\"*}
+  echo $label $mac
+}
+
+function projectNets
+{
+  local nets=$(${HCMD} list_project_networks ${PROJECT})
+  nets=${nets/[/}
+  nets=${nets/]/}
+  nets=${nets//\"/}
+  nets=${nets//,/}
+  echo ${nets}
+}
+
+function addNodeToProject
+{
+  haas project_connect_node ${PROJECT} $1 > /dev/null
+  echo Node:$1 added to project jon > /dev/stderr
+}
+
+function removeNodeFromProject
+{
+  haas project_detach_node ${PROJECT} $1 > /dev/null
+  echo Node:$1 removed from project jon > /dev/stderr
+}
+
+function channels
+{
+  local ninfo=$(haas show_network $1)
+  local chans=${ninfo##*[}
+  chans=${chans%%]*}
+  chans=${chans//\"/}
+  chans=${chans//,/}
+  echo $chans
+}
+
+function addNodeToNetwork
+{
+  local node=$1
+  local mac=$2
+  local net=$3
+
+  local chans=$(channels $net)
+#  echo addNodeToNetwork $node $mac $net $chans
+
+ if [[ $PROJECT_NET == $3 ]]; then
+   ${HCMD} node_connect_network $node $mac $net vlan/native > /dev/null;
+   echo "Node:$node added to network $net vlan/native" > /dev/stderr
+ else 
+   chan=${chans##* }
+   ${HCMD} node_connect_network $node $mac $net $chan > /dev/null;
+   echo "Node:$node added to network $net $chan"  > /dev/stderr
+ fi
+}
+
+function removeNodeFromNetwork
+{
+  local node=$1
+  local mac=$2
+  local net=$3
+
+  ${HCMD} node_detach_network $node $mac $net > /dev/null;
+  echo "Node:$node removed from network $net"
+}
+
+function removeNodeFromNetworks
+{
+  local node=$1
+  local mac=$2
+  local nets="$(projectNets)"
+  local net
+
+  for net in $nets; do
+    removeNodeFromNetwork $node $mac $net
+    sleep 4
+  done
+}
+
+function addNodeToNetworks
+{
+  local node=$1
+  local mac=$2
+
+  local nets="$(projectNets)"
+  local net
+
+  addNodeToNetwork $node $mac $PROJECT_NET
+  sleep 4
+
+  for net in $nets; do
+    if [[ $net != $PROJECT_NET ]]; then
+      addNodeToNetwork $node "$mac" $net
+      sleep 4
+    fi
+  done
+
+}
+
+function powerCycle
+{
+   local node=$1
+   if ! ${HCMD} node_power_cycle $node > /dev/null; then
+      echo "ERROR: power cycle failed"
+      return -1
+   else 
+     echo "Node:$node power cycle started"
+     return 0
+   fi
+}
+
+function listNodes 
+{
+   ${HCMD} list_project_nodes $PROJECT > /dev/stderr
+}
+
+function acquire
+{
+  local node=$1
+
+  [[ -z $node ]] && node=$(freeNode)
+
+  local maclabel=$(nodeNIC $node)
+  local mac=${maclabel##* }
+  maclabel=${maclabel%% *}
+#  echo $node $mac
+
+  addNodeToProject $node
+  addNodeToNetworks $node $maclabel
+  powerCycle $node
+  listNodes 
+  echo $node $mac
+}
+
+function release
+{
+  local node=$1
+
+  if [[ -z $node ]]; then
+     echo "ERROR: kh release <node>" > /dev/stderr
+     exit -1
+  fi
+
+  local mac=$(nodeNIC $node)
+  local maclabel=$(nodeNIC $node)
+  maclabel=${maclabel%% *}
+
+#  echo $node $mac
+  removeNodeFromNetworks $node $maclabel
+  removeNodeFromProject $node
+  listNodes
+}
+
+processargs "$@"
+shift
+
+$dofunc "$@"
+
+exit $?
+
+
+
