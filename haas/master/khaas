@@ -71,6 +71,11 @@ function freeNode
   
 }
 
+function free
+{
+  ${HCMD} list_free_nodes
+}
+
 function nodeNIC
 {
   local info=$(${HCMD} show_node $1)

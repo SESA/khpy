@@ -1,5 +1,38 @@
 #!/bin/bash
 
+HCMD=~/bin/khaas
 ts=/tmp/$$.ts
+leasedir=/var/lib/dhcpd
+node=$1
+
+
+touch $ts
+
+echo "Acquiring node from HAAS" > /dev/stderr
+
+ninfo=( $(${HCMD} acquire $host 2>/dev/stderr) )
+nname=${ninfo[0]}
+nmac=${ninfo[1]}
+
+if [[ -z $nname || -z $nmac ]]; then
+  echo "ERROR: failed to get a node : $nname $nmac" > /dev/stderr
+  exit -1
+fi
+
+echo "Got node: $nname mac; $mac" > /dev/stderr
+
+if ls ${leasedir}/${mac}_* > /dev/null 2>&1
+then 
+  echo "removing ${leasedir}/${mac}_*"
+  rm  ${leasedir}/${mac}_*
+fi
+
+${HCMD} powerCycle $nname 2> /dev/stderr
+
+echo -n "waiting for node to boot:"
+
+while ! ls ${leasedir}/${mac}_* > /dev/null 2>&1
+
+nip=$(echo ${leasedir/${mac}_*)
 
 
