@@ -185,10 +185,10 @@ function powerCycle
 {
    local node=$1
    if ! ${HCMD} node_power_cycle $node > /dev/null; then
-      echo "ERROR: power cycle failed"
+      echo "ERROR: power cycle failed" > /dev/stderr
       return -1
    else 
-     echo "Node:$node power cycle started"
+     echo "Node:$node power cycle started" > /dev/stderr
      return 0
    fi
 }
@@ -201,6 +201,7 @@ function listNodes
 function acquire
 {
   local node=$1
+  local powerflg=$2
 
   [[ -z $node ]] && node=$(freeNode)
 
@@ -211,7 +212,7 @@ function acquire
 
   addNodeToProject $node
   addNodeToNetworks $node $maclabel
-  powerCycle $node
+  [[ -n $powerflg ]] && powerCycle $node
   listNodes 
   echo $node $mac
 }
