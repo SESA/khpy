@@ -1,16 +1,16 @@
 #!/bin/bash
-
+#set -x
 HCMD=~/bin/khaas
 ts=/tmp/$$.ts
 leasedir=/var/lib/dhcpd
 node=$1
 
-
-touch $ts
-
-echo "Acquiring node from HAAS" > /dev/stderr
-
-ninfo=( $(${HCMD} acquire $host 2>/dev/stderr) )
+echo -n "Acquiring node from HAAS: " > /dev/stderr
+start=$(date +%s)
+ninfo=( $(${HCMD} acquire $node 2>/dev/stderr) )
+end=$(date +%s)
+echo "$((end - start)) seconds" > /dev/stderr
+total_start=$start
 nname=${ninfo[0]}
 nmac=${ninfo[1]}
 
@@ -21,18 +21,40 @@ fi
 
 echo "Got node: $nname mac; $mac" > /dev/stderr
 
-if ls ${leasedir}/${mac}_* > /dev/null 2>&1
+if ls ${leasedir}/${nmac}_* > /dev/null 2>&1
 then 
-  echo "removing ${leasedir}/${mac}_*"
-  rm  ${leasedir}/${mac}_*
+  echo "removing ${leasedir}/${nmac}_*"
+  rm  ${leasedir}/${nmac}_*
 fi
 
+echo -n "Power cycling $nname: " >/dev/stderr
+start=$(date +%s)
 ${HCMD} powerCycle $nname 2> /dev/stderr
+end=$(date +%s)
+echo "$((end - start)) seconds" > /dev/stderr
 
-echo -n "waiting for node to boot:"
+echo -n "waiting for node to boot:" > /dev/stderr
 
-while ! ls ${leasedir}/${mac}_* > /dev/null 2>&1
+start=$(date +%s)
+while ! ls ${leasedir}/${nmac}_* > /dev/null 2>&1; do 
+  echo -n . >/dev/stderr
+  sleep 5;
+done
+end=$(date +%s)
+echo " $((end - start)) seconds" >/dev/stderr
 
-nip=$(echo ${leasedir/${mac}_*)
 
+nip=$(echo ${leasedir}/${nmac}_*)
+nip=${nip##*_}
 
+echo -n "waiting for salt to be ready on $nip:"
+while ! salt-run manage.up | grep -q $nip; do
+    echo -n . >/dev/stderr
+    sleep 5;
+done
+end=$(date +%s)
+echo " $((end - start)) seconds" > /dev/stderr
+total_end=$end
+echo "Total: $((total_end - total_start)) seconds" > /dev/stderr
+
+echo $nip $nmac $nname
