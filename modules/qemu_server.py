@@ -170,27 +170,32 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     return ret
 
   def network_client(self,uid,option):
-    nid = KhServer.network_client(self,uid)
+    netid = KhServer.network_client(self,uid)
     user = "root"
     tapcmd = "tunctl -b -u "+user
-    netmask = "255.255.255.0"
-    ip_oct1 = str(int(nid / 256)+1)
-    ip_oct2 = str((nid % 256))
+    ip_oct1 = str((netid % 256))
+    ip_oct2 = str(self.nid);
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    smask = "\\16"
     dhcp_start = "10."+ip_oct1+"."+ip_oct2+".50"    
     dhcp_end = "10."+ip_oct1+"."+ip_oct2+".150"    
-    netpath = os.path.join(self.netpath, str(nid))
-
-    # configure bridge
+    netpath = os.path.join(self.netpath, str(netid))
+    #FIXME: don't hard code if / channel / subnet mask
+    # bring up vlan
+    vlan_baseif = "eth1.1045"
+    vlanif = vlan_baseif+"."+ip_oct1
+    vlancmd = "ip link add link "+vlan_baseif+" "+vlanif+" \
+            type vlan proto 802.1Q id "+ip_oct1
+    subprocess.check_output(vlancmd, shell=True)
+    subprocess.check_output("ip link set dev "+vlanif+" up", shell=True)
+    # create bridge
     br = "kh_br"+ip_oct2
-    brcmd = "brctl addbr "+br
-    subprocess.check_output(brcmd, shell=True)
-    
-    #bring bridge up
-    brcmdup = "ifconfig "+br+" "+hostip+" netmask "+netmask+" up"
-    subprocess.check_output(brcmdup, shell=True)
-
-    # dhcp on bridge 
+    subprocess.check_output("brctl addbr "+br, shell=True)
+    subprocess.check_output("ip add add "+hostip+smask+" dev "+br, shell=True)
+    # add vlan eth to bridge
+    subprocess.check_output("brctl addif "+br+" "+" "+vlanif, shell=True)
+    subprocess.check_output("ip link set dev "+br+" up", shell=True)
+    # run dhcp on subnet 
     dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
 --log-facility="+netpath+"/dnsmasq.log --dhcp-range="+dhcp_start+","+dhcp_end+",12h"
     subprocess.check_output(dnscmd, shell=True)
