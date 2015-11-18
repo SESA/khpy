@@ -5,7 +5,7 @@
 export PROJECT=${KH_PROJECT:-jon}
 export PROJECT_NET=${KH_PROJECT_NET:-$PROJECT}
 export HCMD=haas
-
+export FREE=${KH_FREE:-"cisco-10 cisco-23 cisco-26 cisco-17 cisco-44 cisco-45"}
 
 processargs()
 {
@@ -18,7 +18,7 @@ processargs()
   dofunc=$1
 }
 
-function getJsonVal() {
+getJsonVal() {
    if [ \( $# -ne 1 \) -o \( -t 0 \) ]; then
        echo "Usage: getJsonVal 'key' < /tmp/file";
        echo "   -- or -- ";
@@ -66,9 +66,19 @@ function freeNode
   free=${free/]/}
   free=${free//\"/}
   free=( ${free//,/} )
-  
-  echo ${free[0]}
-  
+
+  local item
+  if [[ -n $FREE ]]; then
+    local l2=" ${free[*]} "                    # add framing blanks
+    for item in $FREE; do
+       if [[ $l2 =~ " $item " ]] ; then    # use $item as regexp
+         echo $item
+         break
+       fi
+    done
+  else   
+    echo ${free[0]}
+  fi
 }
 
 function free
@@ -205,6 +215,11 @@ function acquire
 
   [[ -z $node ]] && node=$(freeNode)
 
+  if [[ -z $node ]]; then
+      echo "NO FREE NODES" > /dev/stderr
+      return -1;
+  fi
+ 
   local maclabel=$(nodeNIC $node)
   local mac=${maclabel##* }
   maclabel=${maclabel%% *}

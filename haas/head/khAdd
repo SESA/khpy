@@ -8,6 +8,12 @@ node=$1
 echo -n "Acquiring node from HAAS: " > /dev/stderr
 start=$(date +%s)
 ninfo=( $(${HCMD} acquire $node 2>/dev/stderr) )
+
+if [[ $? != 0 ]]; then 
+   echo "ERROR: no free nodes?"
+   exit -1
+fi
+
 end=$(date +%s)
 echo "$((end - start)) seconds" > /dev/stderr
 total_start=$start
