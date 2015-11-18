@@ -173,7 +173,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     netid = KhServer.network_client(self,uid)
     user = "root"
     tapcmd = "tunctl -b -u "+user
-    ip_oct1 = str((netid % 256))
+    ip_oct1 = str(int(netid) % 256)
     ip_oct2 = str(self.nid);
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
     smask = "/16"
@@ -256,7 +256,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     # remove dnsmasq
     self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
     # remove network interface
-    ip_oct1 = str((netid % 256))
+    ip_oct1 = str(int(netid) % 256)
     ip_oct2 = str(self.nid);
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
     smask = "/16"
@@ -276,8 +276,8 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     # delete bridge
     br = "kh_br"+ip_oct1
     try:
-      subprocess.check_output("ip addr delete"+hostip+smask+" dev "+br, shell=True)
       subprocess.check_output('ifconfig '+br+' down', shell=True)
+      subprocess.check_output("ip addr delete"+hostip+smask+" dev "+br, shell=True)
     except subprocess.CalledProcessError:
       pass
     try:
@@ -285,7 +285,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     except subprocess.CalledProcessError:
       pass
     # remove records
-    return KhServer.remove_network(self, netid, nid)
+    return KhServer.remove_network(self, netid, hostid)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address
