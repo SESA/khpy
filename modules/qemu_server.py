@@ -191,7 +191,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     # create bridge
     br = "kh_br"+ip_oct1
     subprocess.check_output("brctl addbr "+br, shell=True)
-    subprocess.check_output("ip add add "+hostip+smask+" dev "+br, shell=True)
+    subprocess.check_output("ip addr add "+hostip+smask+" dev "+br, shell=True)
     # add vlan eth to bridge
     subprocess.check_output("brctl addif "+br+" "+" "+vlanif, shell=True)
     subprocess.check_output("ip link set dev "+br+" up", shell=True)
@@ -243,7 +243,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
           pass
     return KhServer.remove_node(self, node, netid)
     
-  def remove_network(self, netid, nid="*"):
+  def remove_network(self, netid, hostid="*"):
     # verify  network is legit
     if not self.network_is_valid(netid):
       return "Error: network "+str(netid)+" is not valid"
@@ -255,9 +255,25 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       self.remove_node(nid)
     # remove dnsmasq
     self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
-    # remove bridge 
-    br = "kh_br"+str((int(netid) % 256))      
+    # remove network interface
+    ip_oct1 = str((netid % 256))
+    ip_oct2 = str(self.nid);
+    hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    #FIXME: don't hard code if / channel / subnet mask
+    vlan_baseif = "eth1.1045"
+    vlanif = vlan_baseif+"."+ip_oct1
+    vlancmd = "ip link delete link "+vlan_baseif+" "+vlanif+" \
+            type vlan proto 802.1Q id "+ip_oct1
     try:
+      subprocess.check_output("ip link set dev "+vlanif+" down", shell=True)
+    except subprocess.CalledProcessError:
+    try:
+      subprocess.check_output(vlancmd, shell=True)
+    except subprocess.CalledProcessError:
+    # delete bridge
+    br = "kh_br"+ip_oct1
+    try:
+      subprocess.check_output("ip addr delete"+hostip+smask+" dev "+br, shell=True)
       subprocess.check_output('ifconfig '+br+' down', shell=True)
     except subprocess.CalledProcessError:
       pass
