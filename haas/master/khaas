@@ -217,7 +217,7 @@ function acquire
 
   if [[ -z $node ]]; then
       echo "NO FREE NODES" > /dev/stderr
-      return -1;
+      exit -1;
   fi
  
   local maclabel=$(nodeNIC $node)
