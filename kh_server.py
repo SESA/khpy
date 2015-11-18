@@ -8,9 +8,10 @@ import copy
 import fnmatch
 import os
 import shutil
+import socket
+import signal
 import subprocess
 import sys
-import signal
 import xmlrpclib
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from kh_shared import *
@@ -48,6 +49,10 @@ class KhServer(object):
     self.data_job_path = os.path.join(self.db_path,
         self.cfg.get("BaseDirectories","job"))
     self.debug = self.cfg.get("debug","debug")
+    if self.cfg.has_option("Defaults","nid"):
+        self.nid =self.cfg.get("Defaults","nid") 
+    else:
+        self.nid = socket.gethostname()
 
   # CLI command parsers ##########################################
   def add_parsers(self, subpar):
@@ -64,7 +69,7 @@ class KhServer(object):
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Install state to database"))
     # reinstall
-    self.parse_install(subpar.add_parser('reinstall',
+    self.parse_reinstall(subpar.add_parser('reinstall',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Clean, delete and reinstall database"))
     # restart
@@ -124,10 +129,11 @@ class KhServer(object):
     if os.path.exists(datapath) == 0:
       os.mkdir(datapath)
     # get node id
-    nodes = self.db_node_get('*',self.cfg.get('Settings','FreeJobID'), count)
+    nodes = self.db_node_get('*',self.cfg.get('Settings','FreeJobID'),
+            self.nid, count)
     # this check should be somewhere smarter..
     if len(nodes) == 0:
-      print "Error: not enough free nodes available"
+      self._print("Error: not enough free nodes available", sys.stderr)
       exit(1)
     # assign nodes
     gotlist = []
@@ -135,7 +141,7 @@ class KhServer(object):
     for node in nodes:
       nid = node[0:node.find(':')]
       gotlist.append(nid)
-      self.db_node_set(nid, jobid)
+      self.db_node_set(nid, jobid, self.nid)
       if os.path.exists(datapath+'/'+str(nid)) == 0:
         os.mkdir(datapath+'/'+str(nid))
     return gotlist
@@ -144,7 +150,7 @@ class KhServer(object):
     ''' Clean all Nodes and Networks for a particular user '''
     nets = self.db_netlist_user(uid)
     for name in nets:
-      self.remove_network(name)
+      self.remove_network(name, self.nid)
     return "Your networks and nodes have been removed"
 
   def console_client(self, key):
@@ -183,7 +189,7 @@ class KhServer(object):
   def remove_network_client(self, network):
     ''' Remove a network, free nodes. Client validation '''
     ## TODO: some sort of user validation
-    return self.remove_network(network)
+    return self.remove_network(network, self.nid)
 
   # Server actions ####################################################
   # these methods are called from the client CLI 
@@ -198,68 +204,63 @@ class KhServer(object):
 
   def clean(self):
     ''' Clean all nodes and networks '''
-    print "Cleaning up nodes and networks..."
+    # kill daemon if running
     if self.server_is_online() == True:
       self.stop()
+
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")+"_orig"),"r+") as f:
+        nodeid_start=f.read()
+    nodeid_end = nodeid_start + self.cfg.getint("Defaults", "instance_max")
     nets = self.db_netlist_all()
     # remove all nets
     for name in nets:
-      self.remove_network(name)
+      self.remove_network(name, self.nid)
     # TODO: this should eventually remove all of *my* state from the db
     # (network dirs, node records, ctl settings)
     # with the notion that the db maybe shared between servers
 
-  def init(self, count=0, start=0):
-    ''' Initilaize the Kittyhawk playform
-        Reset counts to default. Reset node and network records '''
-    if count == 0:
-      count=self.cfg.getint("Defaults", "instance_max")
-    # set record for each node
-    for i in range(start,start+count):
-      self.db_node_set(i, self.cfg.get('Settings','FreeJobID'))
-    print "Setup complete."
+  def install_db(self):
+    ''' Create new database at db_path '''
+    if os.path.exists(self.db_path) != 0:
+      self._print("Error: "+self.db_path+" exists, database can not be installed here.", sys.stderr)
+      exit(1)
+    self._print("khpy database install: "+self.db_path, sys.stdout)
+    # create db directories 
+    os.mkdir(self.db_path)
+    for s in self.cfg.options("BaseDirectories"):
+        d = self.cfg.get("BaseDirectories", s)
+        os.mkdir(os.path.join(self.db_path, d))
+    # initialize records with default values 
+    for s in self.cfg.options("BaseFiles"):
+      file_path= os.path.join(self.db_path, self.cfg.get("BaseFiles", s))
+      with open(file_path, "w+") as f:
+        f.write(self.cfg.get('Defaults',s))
 
   def install(self):
-    ''' Install empty Kittyhawk framework 
-        Creates the directories and files nessessary to initialize
-        and start the Kittyhawk server
-    '''
-    # create db directories (if needed)
-    print self.db_path
+    ''' Install a kittyhawk instance into the database '''
+    # create new database if it doesn't already exist
     if os.path.exists(self.db_path) == 0:
-      os.mkdir(self.db_path)
-      print self.db_path
-    for s in self.cfg.options("BaseDirectories"):
-      d = self.cfg.get("BaseDirectories", s)
-      if os.path.exists(os.path.join(self.db_path, d)) == 0:
-        os.mkdir(os.path.join(self.db_path, d))
-    # create db files (if needed)
-    for s in self.cfg.options("BaseFiles"):
-      d = self.cfg.get("BaseFiles", s)
-      if os.path.exists(os.path.join(self.db_path, d)) == 0:
-        touch(os.path.join(self.db_path, d))
-        with open(self.db_path+'/'+self.cfg.get('BaseFiles', s), "a") as f:
-          f.seek(0)
-          f.truncate()
-          f.write(self.cfg.get('Defaults',s))
-    with open(self.db_path+'/'+self.cfg.get("BaseFiles","nodeid") ,"r+") as f:
-        start=f.read()
-        f.seek(0)
-        f.truncate()
-        f.write(str(int(start)+128))
-    self.init(0,int(start))
-    print "Initialization complete. Ready to start "
+        self.install_db()
+    # create node records for kittyhawk instance 
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")),"r+") as f:
+        nodeid_start=int(f.read())
+    nodeid_end = nodeid_start + self.cfg.getint("Defaults", "instance_max")
+    for nodeid in range(nodeid_start, nodeid_end):
+      self.db_node_set(nodeid, self.cfg.get('Settings','FreeJobID'), self.nid)
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")),"w+") as f:
+        f.write(str(nodeid_end))
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")+"_orig"),"w+") as f:
+        f.write(str(nodeid_start))
+    self._print("Installation complete.", sys.stdout)
 
   def reinstall(self, option={}):
-      self.stop()
-      self.clean()
-      self.install()
-      self.start(option)
+    print "DB reinstall not yet supported.."
+    exit(1);
 
   def remove_node(self, node, netid=None):
     ''' Remove a paticular node from a network '''
     if netid is None:
-      nodes = self.db_node_get(node, '*')
+      nodes = self.db_node_get(node,'*','*')
       noderec = nodes[0]
       if noderec is not None:
         netid = noderec[noderec.find(':')+1:len(noderec)]
@@ -272,23 +273,24 @@ class KhServer(object):
     nodedatapath = os.path.join(datapath, str(node))
     if os.path.exists(nodedatapath) == 1:
       shutil.rmtree(nodedatapath)
-    self.db_node_set(node, self.cfg.get('Settings', 'FreeJobID'))
+    self.db_node_set(node, self.cfg.get('Settings', 'FreeJobID'), self.nid)
     print "Removed node "+str(node)+" from network "+str(netid)
     return "Removed node "+str(node)+" from network "+str(netid)
 
 
-  def remove_network(self, netid):
+  def remove_network(self, netid, nid):
     ''' Remove a network, free connected nodes
 
         This method will reset the network and nodes records and
         delete the network directory. Make sure you are finished
         with all data within the network directory (e.g, pidfiles)
     '''
-    nodes = self.db_node_get('*', netid)
+    nodes = self.db_node_get('*', netid, nid)
     # set nodes as free
     for node in nodes:
-      nid = node[0:node.find(':')]
-      self.db_node_set(nid, self.cfg.get('Settings', 'FreeJobID'))
+      netidp = node[0:node.find(':')]
+      netid = netidp[0:node.find(':')]
+      self.db_node_set(netid, self.cfg.get('Settings', 'FreeJobID'), self.nid)
     # remove net data directories
     datapath = os.path.join(os.path.join(self.db_path,
         self.cfg.get("BaseDirectories", "jobdata")),str(netid))
@@ -329,7 +331,7 @@ class KhServer(object):
         This function also does an install if previous database has 
         not been initialized.
     '''
-    cfg = self.server_config)
+    cfg = self.server_config()
     daemon = False
     if option.has_key('D') and option['D'] is 1:
         daemon = True
@@ -405,7 +407,7 @@ class KhServer(object):
     ''' Verify that a node is allocated
         Return True/False
     '''
-    pull = self.db_node_get(node,'*')
+    pull = self.db_node_get(node,'*','*')
     if len(pull) is 1:
       noderec = pull[0]
       netid = noderec[noderec.find(':')+1:len(noderec)]
@@ -443,8 +445,7 @@ class KhServer(object):
   #  Network methods
   def db_net_set(self): 
     ''' Grab next netid, increment count 
-        Always returns int
-    '''
+        Always returns int '''
     rid=int(next(open(self.db_path+'/'+self.cfg.get('BaseFiles','jobid'))))
     nextid=rid+1
     # increase jobid count
@@ -456,9 +457,7 @@ class KhServer(object):
 
   def db_net_rm(self, net):
     ''' Remove network directory, return (expired) jobid
-
-        Only run this once you are done with all the files within!
-    '''
+        Only run this once you are done with all the files within!  '''
     path = self.db_net_get(net)
     if not (path is None):
         shutil.rmtree(path) # delete directory tree!
@@ -484,8 +483,7 @@ class KhServer(object):
 
   def db_net_get(self, net):
     ''' Verify network, return network path
-        None is return for missing network
-    '''
+        None is return for missing network '''
     ndir = os.path.join(self.netpath, str(net))
     if os.path.isdir(ndir):
         return ndir
@@ -493,12 +491,9 @@ class KhServer(object):
         return None
 
   #  Node methods
-  def db_node_get(self, node, net, count=None):
-    ''' Return matching record(s)
-
-        Upto 'count' many
-    '''
-    f = str(node)+":"+str(net)
+  def db_node_get(self, node, net='*', nid='*', count=None):
+    ''' Return matching record(s) upto 'count' '''
+    f = str(node)+":"+str(net)+":"+str(nid)
     retlist=[]
     for file in os.listdir(self.data_node_path):
       if fnmatch.fnmatch(file, f):
@@ -507,18 +502,17 @@ class KhServer(object):
           break
     return retlist
 
-  def db_node_rm(self, node, net):
-    ''' delete matching node record(s)
-    '''
-    f = str(node)+":"+str(net)
+  def db_node_rm(self, node, net, nid):
+    ''' delete matching node record(s) '''
+    f = str(node)+":"+str(net)+":"+str(nid)
     for file in os.listdir(self.data_node_path):
         if fnmatch.fnmatch(file, f):
             os.remove(self.data_node_path+"/"+file)
 
-  def db_node_set(self, node, net):
-    ''' new node record '''
-    self.db_node_rm(str(node), "*")
-    fnew = self.data_node_path+ "/"+str(node)+":"+str(net)
+  def db_node_set(self, node, net, nid):
+    ''' create new node record '''
+    self.db_node_rm(str(node), "*", "*")
+    fnew = self.data_node_path+ "/"+str(node)+":"+str(net)+":"+str(nid)
     touch(fnew)
 
   # utility methods #############################################

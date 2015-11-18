@@ -238,7 +238,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
           pass
     return KhServer.remove_node(self, node, netid)
     
-  def remove_network(self, netid):
+  def remove_network(self, netid, nid="*"):
     # verify  network is legit
     if not self.network_is_valid(netid):
       return "Error: network "+str(netid)+" is not valid"
@@ -261,7 +261,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     except subprocess.CalledProcessError:
       pass
     # remove records
-    return KhServer.remove_network(self, netid)
+    return KhServer.remove_network(self, netid, nid)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address
