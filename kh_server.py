@@ -50,9 +50,10 @@ class KhServer(object):
         self.cfg.get("BaseDirectories","job"))
     self.debug = self.cfg.get("debug","debug")
     if self.cfg.has_option("Defaults","nid"):
-        self.nid =self.cfg.get("Defaults","nid") 
+        self.nid = self.cfg.get("Defaults","nid") 
     else:
-        self.nid = socket.gethostname()
+        self._print("Error: host id not set", sys.stderr)
+        exit(1);
 
   # CLI command parsers ##########################################
   def add_parsers(self, subpar):
