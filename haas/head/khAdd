@@ -1,6 +1,7 @@
 #!/bin/bash
 #set -x
 HCMD=~/bin/khaas
+KHHOSTDIR=/opt/khhosts
 ts=/tmp/$$.ts
 leasedir=/var/lib/dhcpd
 node=$1
@@ -62,5 +63,11 @@ end=$(date +%s)
 echo " $((end - start)) seconds" > /dev/stderr
 total_end=$end
 echo "Total: $((total_end - total_start)) seconds" > /dev/stderr
+
+[[ ! -d $KHOSTDIR ]] && mkdir -p $KHOSTDIR
+if ls ${KHHOSTDIR}/${mac}_* > /dev/null 2>&1; then
+  rm ${KHHOSTDIR}/${mac}_*
+fi
+touch ${KHHOSTDIR}/${mac}_${nip}_${name}
 
 echo $nip $nmac $nname

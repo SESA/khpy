@@ -1,11 +1,42 @@
-    1  hostname cisco-44
-    2  exit
+    HAAS_ETH=eth1
+    HAAS_CHANNEL=1054 
+
     3  apt-get install vlan
-    4  ifconfig
     5  modprobe 8021q
-    6  vconfig add eth1 1054
+    6  vconfig add ${HAAS_ETH} ${HAAS_CHANNEL}
+    8  ip link set dev ${HAAS_ETH}.${HAAS_CHANNEL} up
+
+KH global
+   /opt/khpy/khs install
+   /opt/khpy/khs start &
+
+host 101: ip addr add 192.168.2.101/24 dev ${HAAS_ETH}.1054
+Host 133: ip addr add 192.168.2.133/24 dev ${HAAS_ETH}.1054
+
+
+KH stuff per kh net
+ HID=133
+ NID=2
+ NODEID=1
+ HAAS_CHANNEL=1054 
+
+   ip link add link ${HAAS_ETH}.${HAAS_CHANNEL} ${HAAS_ETH}.${HASS_CHANNEL}.${NID} type vlan proto 802.1Q id ${NID}
+   ip link set dev ${HAAS_ETH}.${HAAS_CHANNEL}.${NID} up
+   brctl addif kh_br${NID} ${HAAS_ETH}.${HAAS_CHANNEL}.${NID}
+   ip addr add 10.${NID}.${HID}.${NODEID}/16 dev kh_br${NID}
+
+
+
+
+
+
+host 101:  ip addr add 192.168.12.101/24 dev eth1.1054.2
+host 133:  ip addr add 192.168.12.133/24 dev eth1.1054.2
+
+
+
     7  ip addr add 192.168.20.44/24 dev eth1.1054
-    8  ip link set dev eth1.1054 up
+
     9  ifconfig eth1.1054
    10  ping -c 3 192.168.20.18
    12  ip link add link eth1.1054 eth1.1054.2 type vlan proto 802.1Q id 2
