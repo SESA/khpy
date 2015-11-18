@@ -176,7 +176,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     ip_oct1 = str((netid % 256))
     ip_oct2 = str(self.nid);
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
-    smask = "\\16"
+    smask = "/16"
     dhcp_start = "10."+ip_oct1+"."+ip_oct2+".50"    
     dhcp_end = "10."+ip_oct1+"."+ip_oct2+".150"    
     netpath = os.path.join(self.netpath, str(netid))
