@@ -259,6 +259,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     ip_oct1 = str((netid % 256))
     ip_oct2 = str(self.nid);
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    smask = "/16"
     #FIXME: don't hard code if / channel / subnet mask
     vlan_baseif = "eth1.1045"
     vlanif = vlan_baseif+"."+ip_oct1
