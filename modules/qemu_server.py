@@ -267,9 +267,11 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     try:
       subprocess.check_output("ip link set dev "+vlanif+" down", shell=True)
     except subprocess.CalledProcessError:
+      pass
     try:
       subprocess.check_output(vlancmd, shell=True)
     except subprocess.CalledProcessError:
+      pass
     # delete bridge
     br = "kh_br"+ip_oct1
     try:
