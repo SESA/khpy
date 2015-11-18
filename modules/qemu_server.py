@@ -189,7 +189,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     subprocess.check_output(vlancmd, shell=True)
     subprocess.check_output("ip link set dev "+vlanif+" up", shell=True)
     # create bridge
-    br = "kh_br"+ip_oct2
+    br = "kh_br"+ip_oct1
     subprocess.check_output("brctl addbr "+br, shell=True)
     subprocess.check_output("ip add add "+hostip+smask+" dev "+br, shell=True)
     # add vlan eth to bridge
