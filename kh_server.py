@@ -210,7 +210,7 @@ class KhServer(object):
       self.stop()
 
     with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")+"_orig"),"r+") as f:
-        nodeid_start=f.read()
+        nodeid_start=int(f.read())
     nodeid_end = nodeid_start + self.cfg.getint("Defaults", "instance_max")
     nets = self.db_netlist_all()
     # remove all nets

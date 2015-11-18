@@ -277,7 +277,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     br = "kh_br"+ip_oct1
     try:
       subprocess.check_output('ifconfig '+br+' down', shell=True)
-      subprocess.check_output("ip addr delete"+hostip+smask+" dev "+br, shell=True)
+      subprocess.check_output("ip addr delete "+hostip+smask+" dev "+br, shell=True)
     except subprocess.CalledProcessError:
       pass
     try:
