@@ -199,7 +199,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
 --log-facility="+netpath+"/dnsmasq.log --dhcp-range="+dhcp_start+","+dhcp_end+",12h"
     subprocess.check_output(dnscmd, shell=True)
-    return str(nid)+'\n'+str(hostip)
+    return str(netid)+'\n'+str(hostip)
 
   def _kill(self, path):
     if os.path.exists(path):
