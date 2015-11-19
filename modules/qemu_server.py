@@ -238,7 +238,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
         try:
           # remove tap from network bridge
           subprocess.check_output("brctl delif kh_b"+str(netid)+" \
-                  "+tap+,shell=True) 
+                  "+tap,shell=True) 
           # delete tap
           tapdelcmd ='ip tuntap del '+tap+' mode tap multi_queue'
           subprocess.check_output(tapdelcmd, shell=True)
