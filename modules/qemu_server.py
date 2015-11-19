@@ -218,8 +218,8 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
   def remove_node(self, node):
     # verify  node is legit
     if not self.node_is_valid(node):
-      return "Error: node "+str(node)+" is not valid"
-    nodes = self.db_node_get(node, '*')
+        return "Warning: ["+str(node)+"] was not cleaned. Not a valid node."
+    nodes = self.db_node_get(node, '*', self.nid)
     noderec = nodes[0]
     if noderec is not None:
       netid = noderec[noderec.find(':')+1:len(noderec)]
@@ -229,7 +229,6 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     nodedir = os.path.join(netdir, str(node))
     self._kill(os.path.join(nodedir,'pid'))
     time.sleep(1)
-    # remove tap
     tappath=os.path.join(nodedir, 'tap')
     if os.path.exists(tappath):
       # read pid, remove process
@@ -237,6 +236,10 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
         tap = f.readline()
         f.close()
         try:
+          # remove tap from network bridge
+          subprocess.check_output("brctl delif kh_b"+str(netid)+" \
+                  "+tap+,shell=True) 
+          # delete tap
           tapdelcmd ='ip tuntap del '+tap+' mode tap multi_queue'
           subprocess.check_output(tapdelcmd, shell=True)
         except subprocess.CalledProcessError:
