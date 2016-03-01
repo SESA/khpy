@@ -75,7 +75,7 @@ class KhServer(object):
     # restart
     self.parse_restart(subpar.add_parser('restart',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Restart khpy server"))
+      description="Reinstall database, restart server"))
     # start
     self.parse_start(subpar.add_parser('start',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -94,9 +94,6 @@ class KhServer(object):
     parser.set_defaults(func=self.install)
     return parser
   def parse_reinstall(self, parser):
-    parser.add_argument('-D', 
-            action=KH_store_optional_const, const=1,
-            help='Start daemon ( req:python-daemon )')
     parser.set_defaults(func=self.reinstall)
     return parser
   def parse_restart(self, parser):
@@ -207,7 +204,6 @@ class KhServer(object):
     # kill daemon if running
     if self.server_is_online() == True:
       self.stop()
-
     with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")+"_orig"),"r+") as f:
         nodeid_start=f.read()
     nodeid_end = nodeid_start + self.cfg.getint("Defaults", "instance_max")
@@ -253,9 +249,21 @@ class KhServer(object):
         f.write(str(nodeid_start))
     self._print("Installation complete.", sys.stdout)
 
-  def reinstall(self, option={}):
-    print "DB reinstall not yet supported.."
-    exit(1);
+  def reinstall(self):
+    if os.path.exists(self.db_path) == 1:
+      shutil.rmtree(self.db_path)
+    self.install_db()
+    # create node records for kittyhawk instance 
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")),"r+") as f:
+        nodeid_start=int(f.read())
+    nodeid_end = nodeid_start + self.cfg.getint("Defaults", "instance_max")
+    for nodeid in range(nodeid_start, nodeid_end):
+      self.db_node_set(nodeid, self.cfg.get('Settings','FreeJobID'), self.nid)
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")),"w+") as f:
+        f.write(str(nodeid_end))
+    with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")+"_orig"),"w+") as f:
+        f.write(str(nodeid_start))
+    self._print("Installation complete.", sys.stdout)
 
   def remove_node(self, node, netid=None):
     ''' Remove a paticular node from a network '''
@@ -309,10 +317,11 @@ class KhServer(object):
       print job, jobid, len(nodes)
 
   def restart(self, option={}):
-    ''' Stop and resume the server 
-        Previous state is kept intact (use 'clean' otherwise)
+    ''' Stop server, install clean database, resume server 
     '''
     self.stop()
+    self.clean()
+    self.reinstall()
     self.start(option)
     return 0
 
