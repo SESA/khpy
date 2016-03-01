@@ -202,6 +202,8 @@ class KhServer(object):
   def clean(self):
     ''' Clean all nodes and networks '''
     # kill daemon if running
+    if os.path.exists(self.db_path) == 0:
+        return 
     if self.server_is_online() == True:
       self.stop()
     with open(os.path.join(self.db_path, self.cfg.get("BaseFiles", "nodeid")+"_orig"),"r+") as f:
