@@ -217,7 +217,8 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
     nodes = self.db_node_get(node, '*')
     noderec = nodes[0]
     if noderec is not None:
-      netid = noderec[noderec.find(':')+1:len(noderec)]
+      splits = noderec.split(':')
+      netid = splits[1] 
     else:
       return "Error: no network for node #"+str(node)
     netdir = os.path.join(self.netpath, str(netid))
