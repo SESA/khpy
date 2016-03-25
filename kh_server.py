@@ -68,10 +68,6 @@ class KhServer(object):
     self.parse_install(subpar.add_parser('install',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
       description="Install state to database"))
-    # reinstall
-    self.parse_reinstall(subpar.add_parser('reinstall',
-      formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-      description="Clean, delete and reinstall database"))
     # restart
     self.parse_restart(subpar.add_parser('restart',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -92,9 +88,6 @@ class KhServer(object):
     return parser
   def parse_install(self, parser):
     parser.set_defaults(func=self.install)
-    return parser
-  def parse_reinstall(self, parser):
-    parser.set_defaults(func=self.reinstall)
     return parser
   def parse_restart(self, parser):
     parser.add_argument('-D', 
