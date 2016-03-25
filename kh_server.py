@@ -314,9 +314,7 @@ class KhServer(object):
   def restart(self, option={}):
     ''' Stop server, install clean database, resume server 
     '''
-    self.stop()
-    self.clean()
-    self.reinstall()
+    self.install()
     self.start(option)
     return 0
 
