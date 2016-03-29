@@ -147,7 +147,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       ret += nodedir+"/finish\n"
       # pinning
       if option.has_key('pin') and len(option['pin']) >= 0:
-        pcmd = "taskset -a -c "+str(option['pin'])
+        pcmd = "taskset -c "+str(option['pin'])
         cmd = pcmd+' '+cmd 
       # perf
       if option.has_key('perf')  :
