@@ -150,13 +150,13 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
         pcmd = "taskset -c "+str(option['pin'])
         cmd = pcmd+' '+cmd 
       # perf
-      if option.has_key('perf')  :
-        perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf "
+      if option.has_key('perf'):
+        perf_cmd = self.config.get('Qemu','perf_cmd')
         if len(option['perf']) > 0:
             perf_cmd += " " 
             perf_cmd += option['perf']
         cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
-        ret += nodedir+"/perf\n"
+        ret +=""+option['perf']+"\n"
       else:
         cmd = "("+cmd+")&"
       # cmd file
