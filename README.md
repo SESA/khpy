@@ -23,8 +23,6 @@ remove
 
 ###Requirements: 
 python 2.7  
-lockfile 0.10
-python-daemon 1.6 (optional)
 
 #####Qemu modules requirements 
 qemu-kvm  
@@ -32,3 +30,5 @@ brctl
 dnsmasq  
 tunctl  
 
+### Install (ubuntu):
+cp khpy/initd /etc/initd/khpy
