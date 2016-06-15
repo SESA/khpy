@@ -43,159 +43,157 @@ class QemuServer(KhServer):
       self.config.get('Qemu', 'stdout_path'),
       self.config.get('Qemu', 'stderr_path'))
 
-  def alloc_client(self, nid, count, img, config, option={}):
+  def alloc_client(self, netid, count, img, config, option={}):
+    # verify network 
+    if not self.network_is_valid(netid):
+      return "Error: network "+str(netid)+" is not valid"
 
-    # verify  network is legit
-    if not self.network_is_valid(nid):
-      return "Error: network "+str(nid)+" is not valid"
-
-    nodes = KhServer.alloc_client(self, nid, count)
-    jobdir = self.netpath+'/'+str(nid)
+    nodes = KhServer.alloc_client(self, netid, count)
+    jobdir = self.netpath+'/'+str(netid)
     ret = ""
+    ip_oct1 = str(int(netid) % 256)
+    ip_oct2 = str(int(self.nid) % 256)
+    hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    n = "kh_"+ip_oct1
+    
     # allocate nodes
     for node in nodes:
       ret += str(node)+"\n"
       nodedir = os.path.join(jobdir,str(node))
-      cmd = self.config.get('Qemu', 'cmd')
-      # gdb debug 
-      if option.has_key('g') and option['g'] > 0:
-        gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
-        cmd += " -gdb tcp::"+str(gdb_port) 
-        ret += "gdb: "+str(gdb_port)+"\n"
-      # terminal signal fifo
-      if option.has_key('s') and option['s'] > 0:
-          finish_cmd = "mkfifo "+nodedir+"/finish"
-          subprocess.call(finish_cmd, shell=True)
-      ## serial log
-      cmd += " -serial stdio"
+      nname = n+"_"+str(node)
+      nodeip = "10."+ip_oct1+"."+ip_oct2+"."+str(((int(node)%254)+1))
+      docker_run_cmd = "docker run -d --cap-add NET_ADMIN \
+              --device  /dev/kvm:/dev/kvm --device /dev/net/tun:/dev/net/tun \
+              --device /dev/vhost-net:/dev/vhost-net \
+              --ip="+nodeip+" --net="+n+" --name="+nname
+      docker_log_cmd = "docker logs -f "+nname
+      qemu_args = " "
+
+      # cid
+      docker_run_cmd += " --cidfile=\""+nodedir+"/cid\""
+      ret += nodedir+"/cid\n"
       # ram
-      ram = self.config.get("Qemu", "default_ram") + "G"
       if option.has_key('ram') and option['ram'] > 0:
-        ram = str(option['ram']) + "G"
-      cmd += " -m "+ram
+        docker_run_cmd += " -e VM_MEM="+str(option['ram'])+"G"
       # cpus 
       cpus = self.config.get("Qemu", "default_cpu") 
       if option.has_key('cpu') and option['cpu'] > 0:
         cpus= str(option['cpu']) 
-      cmd += " -smp cpus="+cpus
-      #numa
-      numa = int(self.config.get("Qemu", "default_numa"))
-      if option.has_key('numa') and option['numa'] > 0:
-        numa= int(option['numa'])
-      if numa > 1:
-          cpu_per_node = int(math.floor(int(cpus)/int(numa)))
-          for i in range(numa):
-            cpu_list=""
-            if cpu_per_node > 1:
-              cpu_list=str(int(i*cpu_per_node))+"-"+str(((i+1)*(cpu_per_node))-1)
-            else:
-              cpu_list=str(int(i*cpu_per_node))
-            cmd += " -numa node,cpus="+cpu_list
-      # naw tap added to network bridge 
-      mac = self.generate_mac(node)
-      ret += mac+"\n"
-      tap = "kh_"+str(node)
-      tapcmd = "ip tuntap add "+tap+" mode tap multi_queue"
-      kh_server.touch(os.path.join(nodedir, 'tap'))
-      subprocess.check_output(tapcmd, shell=True).rstrip()
-      ret += "tap: "+tap+"\n"
-      tapfile = os.path.join(nodedir, 'tap')
-      kh_server.touch(tapfile)
-      if os.path.isfile(tapfile) == 1:
-        with open(tapfile, "a") as f:
-          f.seek(0)
-          f.truncate()
-          f.write(str(tap))
-      br = "kh_br"+str((int(nid) % 256))      
-      tapbrcmd = "brctl addif "+br+" "+tap
-      subprocess.check_output(tapbrcmd, shell=True)
-      tapupcmd = "ip link set "+tap+" up"
-      subprocess.check_output(tapupcmd, shell=True)
-      # network command
-      netcpu = cpus
-      if int(netcpu) == 1: 
-          netcpu = 2
-      elif int(netcpu) > 8:
-          netcpu = 8
-      cmd += " --netdev tap,id=vlan1,ifname="+tap+",\
-script=no,downscript=no,vhost=on,queues="+str(netcpu)
-      cmd += " --device virtio-net-pci,mq=on,\
-vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
-      # pid
-      cmd += " -pidfile "+nodedir+"/pid"
-      # display
-      cmd += " -display none "
-      # load image
-      if option.has_key('iso') and option['iso'] is 1:
-        # load ISO image (assumed full OS)
-        cmd += " "+str(img)
-      else:
-        #kernel & config
-        cmd += " -kernel "+str(img)
-        cmd += " -initrd "+str(config)
+        docker_run_cmd += " -e VM_CPU="+str(option['cpu'])
+      # gdb debug 
+      if option.has_key('g') and option['g'] > 0:
+        gdb_port = int(self.config.get('Qemu', 'gdb_baseport')) + int(node)
+        qemu_args += " -gdb tcp::"+str(gdb_port) 
+        ret += "gdb: "+str(gdb_port)+"\n"
       # additional qemu commands
       if option.has_key('cmd') and len(option['cmd']) > 0:
-        cmd += " "+option['cmd']+" " 
-      # stdout 
-      cmd += " >"+nodedir+"/stdout" 
+        qemu_args += " "+option['cmd']+" " 
+      # logs 
       ret += nodedir+"/stdout\n"
-      # stderr 
-      cmd += " 2>"+nodedir+"/stderr" 
       ret += nodedir+"/stderr\n"
-      # finish
-      cmd += "; date >"+nodedir+"/finish;" 
-      ret += nodedir+"/finish\n"
-      # pinning
-      if option.has_key('pin') and len(option['pin']) >= 0:
-        pcmd = "taskset -c "+str(option['pin'])
-        cmd = pcmd+' '+cmd 
-      # perf
-      if option.has_key('perf'):
-        perf_cmd = self.config.get('Qemu','perf_cmd')
-        if len(option['perf']) > 0:
-            perf_cmd += " " 
-            perf_cmd += option['perf']
-        cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
-        ret +=""+option['perf']+"\n"
+      docker_log_cmd += " > "+nodedir+"/stdout"
+      docker_log_cmd += " 2> "+nodedir+"/stderr"
+      docker_log_cmd = "( "+docker_log_cmd+" )&"
+
+      ## image mounts
+      if option.has_key('iso') and option['iso'] is 1:
+        # load ISO image (assumed full OS)
+        docker_run_cmd += " -v "+str(img)+":/tmp/image.iso"
+        qemu_args += " /tmp/image.iso" 
       else:
-        cmd = "("+cmd+")&"
-      # cmd file
+        #kernel & config
+        docker_run_cmd += " -v "+str(img)+":/tmp/krnl.elf"
+        docker_run_cmd += " -v "+str(config)+":/tmp/initrd"
+        qemu_args += " -kernel /tmp/krnl.elf"
+        qemu_args += " -initrd /tmp/initrd"
+
+      ## execute cmd 
+      docker_run_cmd += " ebbrt/kvm-qemu:latest "+qemu_args
       with open(nodedir+"/cmd", 'a') as f:
-        f.write(cmd+"/n");
+        f.write(docker_run_cmd+"/n");
       ret += nodedir+"/cmd"
       if option.has_key('t') and option['t'] > 0:
-        ret += "\nTEST RUN: QEMU instance was not allocated\n"
+        ret += "\nTEST RUN: docker instance was not allocated\n"
       else:
-        subprocess.call(cmd, shell=True, executable='/bin/bash')
+        #self._print(docker_run_cmd)
+        #self._print(docker_log_cmd)
+        subprocess.call(docker_run_cmd, shell=True, executable='/bin/bash')
+        subprocess.call(docker_log_cmd, shell=True, executable='/bin/bash')
+
+      #numa
+      #numa = int(self.config.get("Qemu", "default_numa"))
+      #if option.has_key('numa') and option['numa'] > 0:
+      #  numa= int(option['numa'])
+      #if numa > 1:
+      #    cpu_per_node = int(math.floor(int(cpus)/int(numa)))
+      #    for i in range(numa):
+      #      cpu_list=""
+      #      if cpu_per_node > 1:
+      #        cpu_list=str(int(i*cpu_per_node))+"-"+str(((i+1)*(cpu_per_node))-1)
+      #      else:
+      #        cpu_list=str(int(i*cpu_per_node))
+      #      qemu_args += " -numa node,cpus="+cpu_list
+      # terminal signal fifo
+      # if option.has_key('s') and option['s'] > 0:
+      #     finish_cmd = "mkfifo "+nodedir+"/finish"
+      #     subprocess.call(finish_cmd, shell=True)
+      # pinning
+      #if option.has_key('pin') and len(option['pin']) >= 0:
+      #  pcmd = "taskset -a -c "+str(option['pin'])
+      #  cmd = pcmd+' '+cmd 
+      # perf
+      #if option.has_key('perf')  :
+      #  perf_cmd = self.config.get('Qemu','perf_cmd')+" -o "+nodedir+"/perf "
+      #  if len(option['perf']) > 0:
+      #    perf_cmd += option['perf']
+      #  cmd = "( "+perf_cmd+" "+cmd+" ) </dev/null &"
+      #  ret += nodedir+"/perf\n"
+      #else:
+      #  cmd = "("+cmd+")&"
+
     # end of per-node for-loop
     return ret
 
   def network_client(self,uid,option):
-    nid = KhServer.network_client(self,uid)
-    user = "root"
-    tapcmd = "tunctl -b -u "+user
-    netmask = "255.255.255.0"
-    ip_oct1 = str(int(nid / 256)+1)
-    ip_oct2 = str((nid % 256))
+    netid = KhServer.network_client(self,uid)
+    netpath = os.path.join(self.netpath, str(netid))
+    ip_oct1 = str(int(netid) % 256)
+    ip_oct2 = str(int(self.nid) % 256)
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
-    dhcp_start = "10."+ip_oct1+"."+ip_oct2+".50"    
-    dhcp_end = "10."+ip_oct1+"."+ip_oct2+".150"    
-    netpath = os.path.join(self.netpath, str(nid))
+    n = "kh_"+ip_oct1
+    b = "kh_"+ip_oct1+"B"
+    t = "kh_"+ip_oct1+"T"
+    docker_net_cmd = "docker network create -d bridge \
+            -o \"com.docker.network.bridge.name\"=\""+b+"\"\
+            -o \"com.docker.network.bridge.host_binding_ipv4\"=\""+hostip+"\" \
+            --subnet="+hostip+"/16 \
+            --ip-range="+hostip+"/24 "+n
+    subprocess.check_output(docker_net_cmd, shell=True)
+    return str(netid)+'\n'+str(hostip)
 
-    # configure bridge
-    br = "kh_br"+ip_oct2
-    brcmd = "brctl addbr "+br
-    subprocess.check_output(brcmd, shell=True)
-    
-    #bring bridge up
-    brcmdup = "ifconfig "+br+" "+hostip+" netmask "+netmask+" up"
-    subprocess.check_output(brcmdup, shell=True)
-
-    # dhcp on bridge 
-    dnscmd = "dnsmasq --pid-file="+netpath+"/dnsmasq --listen-address="+hostip+" -z \
---log-facility="+netpath+"/dnsmasq.log --dhcp-range="+dhcp_start+","+dhcp_end+",12h"
-    subprocess.check_output(dnscmd, shell=True)
-    return str(nid)+'\n'+str(hostip)
+  def remove_network(self, netid, hostid="*"):
+    if not self.network_is_valid(netid):
+      return "Error: network "+str(netid)+" is not valid"
+    ip_oct1 = str(int(netid) % 256)
+    ip_oct2 = str(int(self.nid) % 256)
+    hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    n = "kh_"+ip_oct1
+    b = "kh_"+ip_oct1+"B"
+    t = "kh_"+ip_oct1+"T"
+    docker_netrm_cmd = "docker network rm "+n
+    # remove nodes on network
+    netdir = os.path.join(self.netpath, str(netid))
+    nodes = self.db_node_get('*', netid)
+    for node in nodes:
+      nid = node[0:node.find(':')]
+      self.remove_node(nid)
+    # docker network rm
+    try:
+      subprocess.check_output(docker_netrm_cmd, shell=True)
+    except subprocess.CalledProcessError:
+      pass
+    # remove network record
+    return KhServer.remove_network(self, netid, hostid)
 
   def _kill(self, path):
     if os.path.exists(path):
@@ -212,7 +210,7 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       self._print("Warning: file "+str(path)+" not found")
 
   def remove_node(self, node):
-    # verify  node is legit
+    # verify node 
     if not self.node_is_valid(node):
       return "Error: node "+str(node)+" is not valid"
     nodes = self.db_node_get(node, '*')
@@ -224,46 +222,20 @@ vectors="+str((2*int(netcpu))+2)+",netdev=vlan1,mac="+mac
       return "Error: no network for node #"+str(node)
     netdir = os.path.join(self.netpath, str(netid))
     nodedir = os.path.join(netdir, str(node))
-    self._kill(os.path.join(nodedir,'pid'))
-    time.sleep(1)
-    # remove tap
-    tappath=os.path.join(nodedir, 'tap')
-    if os.path.exists(tappath):
+    cidpath=os.path.join(nodedir, 'cip')
+    if os.path.exists(cidpath):
       # read pid, remove process
-      with open(tappath, 'r') as f:
-        tap = f.readline()
+      with open(cidpath, 'r') as f:
+        cid = f.readline()
         f.close()
         try:
-          tapdelcmd ='ip tuntap del '+tap+' mode tap multi_queue'
-          subprocess.check_output(tapdelcmd, shell=True)
+          subprocess.check_output("docker stop "+str(cid) ,shell=True) 
+          subprocess.check_output("docker rm "+str(cid) ,shell=True) 
         except subprocess.CalledProcessError:
           pass
+    else:
+      return "Error: could not verify cid" 
     return KhServer.remove_node(self, node, netid)
-    
-  def remove_network(self, netid, nid="*"):
-    # verify  network is legit
-    if not self.network_is_valid(netid):
-      return "Error: network "+str(netid)+" is not valid"
-    # get node records
-    netdir = os.path.join(self.netpath, str(netid))
-    nodes = self.db_node_get('*', netid)
-    for node in nodes:
-      nid = node[0:node.find(':')]
-      self.remove_node(nid)
-    # remove dnsmasq
-    self._kill(os.path.join(os.path.join(netdir, 'dnsmasq')))
-    # remove bridge 
-    br = "kh_br"+str((int(netid) % 256))      
-    try:
-      subprocess.check_output('ifconfig '+br+' down', shell=True)
-    except subprocess.CalledProcessError:
-      pass
-    try:
-      subprocess.check_output('brctl delbr '+br, shell=True)
-    except subprocess.CalledProcessError:
-      pass
-    # remove records
-    return KhServer.remove_network(self, netid, nid)
 
 # As per "standards" lookuping up on the net
 # the following are locally admined mac address
