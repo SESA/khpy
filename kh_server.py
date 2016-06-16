@@ -412,7 +412,8 @@ class KhServer(object):
     pull = self.db_node_get(node,'*','*')
     if len(pull) is 1:
       noderec = pull[0]
-      netid = noderec[noderec.find(':')+1:len(noderec)]
+      tmp = noderec[noderec.find(':')+1:len(noderec)]
+      netid = tmp[0:tmp.find(':')]
       # verify node is assigned to a network
       if netid is not self.cfg.get('Settings','FreeJobID'):
         return True
