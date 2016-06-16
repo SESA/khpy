@@ -176,17 +176,14 @@ class QemuServer(KhServer):
       return "Error: network "+str(netid)+" is not valid"
     ip_oct1 = str(int(netid) % 256)
     ip_oct2 = str(int(self.nid) % 256)
-    hostip = "10."+ip_oct1+"."+ip_oct2+".1"
     n = "kh_"+ip_oct1
-    b = "kh_"+ip_oct1+"B"
-    t = "kh_"+ip_oct1+"T"
     docker_netrm_cmd = "docker network rm "+n
     # remove nodes on network
     netdir = os.path.join(self.netpath, str(netid))
     nodes = self.db_node_get('*', netid)
     for node in nodes:
-      nid = node[0:node.find(':')]
-      self.remove_node(nid)
+      nodeid = node[0:node.find(':')]
+      self.remove_node(nodeid)
     # docker network rm
     try:
       subprocess.check_output(docker_netrm_cmd, shell=True)
@@ -212,28 +209,30 @@ class QemuServer(KhServer):
   def remove_node(self, node):
     # verify node 
     if not self.node_is_valid(node):
-        return "Warning: ["+str(node)+"] was not cleaned. Not a valid node."
+        return "Error: "+str(node)+" is not a valid node."
     nodes = self.db_node_get(node, '*', self.nid)
     noderec = nodes[0]
     if noderec is not None:
-      netid = noderec[noderec.find(':')+1:len(noderec)]
+      tmp = noderec[noderec.find(':')+1:len(noderec)]
+      netid = tmp[0:tmp.find(':')]
     else:
       return "Error: no network for node #"+str(node)
     netdir = os.path.join(self.netpath, str(netid))
     nodedir = os.path.join(netdir, str(node))
-    cidpath=os.path.join(nodedir, 'cip')
-    if os.path.exists(cidpath):
-      # read pid, remove process
-      with open(cidpath, 'r') as f:
-        cid = f.readline()
-        f.close()
-        try:
-          subprocess.check_output("docker stop "+str(cid) ,shell=True) 
-          subprocess.check_output("docker rm "+str(cid) ,shell=True) 
-        except subprocess.CalledProcessError:
-          pass
-    else:
-      return "Error: could not verify cid" 
+    cidpath = os.path.join(nodedir, 'cid')
+    if not os.path.exists(cidpath):
+       print "Error reading file ",str(cidpath)
+       return
+    # read pid, remove process
+    with open(cidpath, 'r') as f:
+      cid = f.readline()
+      f.close()
+      try:
+        print "Remove container :",str(cid)
+        subprocess.check_output("docker stop "+str(cid) ,shell=True) 
+        subprocess.check_output("docker rm "+str(cid) ,shell=True) 
+      except subprocess.CalledProcessError:
+        pass
     return KhServer.remove_node(self, node, netid)
 
 # As per "standards" lookuping up on the net
