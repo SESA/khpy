@@ -52,7 +52,7 @@ class KhServer(object):
     if self.cfg.has_option("Defaults","nid"):
         self.nid =self.cfg.get("Defaults","nid") 
     else:
-        self.nid = socket.gethostname()
+        self.nid = 0
 
   # CLI command parsers ##########################################
   def add_parsers(self, subpar):
