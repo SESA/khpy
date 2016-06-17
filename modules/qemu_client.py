@@ -23,3 +23,7 @@ class QemuClient(KhClient):
     parser.add_argument('-s', action=KH_store_optional_const,
             const=1, help='Signal on termination')
     return KhClient.parse_alloc(self,parser)
+  def parse_network(self, parser):
+    parser.add_argument('--zk', action=KH_store_optional_const,
+            const=1, help='attach ZooKeeper instance')
+    return KhClient.parse_network(self,parser)

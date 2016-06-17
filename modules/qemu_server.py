@@ -160,6 +160,7 @@ class QemuServer(KhServer):
     ip_oct1 = str(int(netid) % 256)
     ip_oct2 = str(int(self.nid) % 256)
     hostip = "10."+ip_oct1+"."+ip_oct2+".1"
+    zkip = "10."+ip_oct1+"."+ip_oct2+".254"
     n = "kh_"+ip_oct1
     b = "kh_"+ip_oct1+"B"
     t = "kh_"+ip_oct1+"T"
@@ -168,7 +169,17 @@ class QemuServer(KhServer):
             -o \"com.docker.network.bridge.host_binding_ipv4\"=\""+hostip+"\" \
             --subnet="+hostip+"/16 \
             --ip-range="+hostip+"/24 "+n
+    docker_zk_cmd = "docker run -d --cap-add NET_ADMIN \
+              --device  /dev/kvm:/dev/kvm --device /dev/net/tun:/dev/net/tun \
+              --device /dev/vhost-net:/dev/vhost-net \
+              --ip="+zkip+" --net="+n+" --name="+n+"_zk \
+              jplock/zookeeper:latest"
     subprocess.check_output(docker_net_cmd, shell=True)
+    # Zookeeper
+    if option.has_key('zk') and option['zk'] == 1:
+      print "Starting ZooKeeper instance"
+      subprocess.check_output(docker_zk_cmd, shell=True)
+      return str(netid)+'\n'+str(hostip)+'\n'+str(zkip)
     return str(netid)+'\n'+str(hostip)
 
   def remove_network(self, netid, hostid="*"):
@@ -186,6 +197,7 @@ class QemuServer(KhServer):
       self.remove_node(nodeid)
     # docker network rm
     try:
+      subprocess.check_output("docker rm -f kh_"+str(netid)+"_zk", shell=True)
       subprocess.check_output(docker_netrm_cmd, shell=True)
     except subprocess.CalledProcessError:
       pass
