@@ -61,7 +61,7 @@ class QemuServer(KhServer):
       ret += str(node)+"\n"
       nodedir = os.path.join(jobdir,str(node))
       nname = n+"_"+str(node)
-      nodeip = "10."+ip_oct1+"."+ip_oct2+"."+str(((int(node)%254)+1))
+      nodeip = "10."+ip_oct1+"."+ip_oct2+"."+str(((int(node)%253)+1))
       docker_run_cmd = "docker run -d --cap-add NET_ADMIN \
               --device  /dev/kvm:/dev/kvm --device /dev/net/tun:/dev/net/tun \
               --device /dev/vhost-net:/dev/vhost-net \
